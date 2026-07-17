@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dev-only: the wishlist backend is served over plain HTTP (no TLS), so cleartext
+  traffic must be explicitly permitted or every request fails with
+  "CLEARTEXT communication ... not permitted by network security policy".
+
+  base-config permits cleartext to any host, which covers all dev targets without
+  knowing the address ahead of time:
+    - 10.0.2.2            (host machine as seen from the Android emulator)
+    - localhost/127.0.0.1 (Windows desktop / adb reverse)
+    - the PC's LAN IP     (a real phone on the same WiFi, IP not known in advance)
+
+  For production (HTTPS backend) this file should be removed or tightened to
+  cleartextTrafficPermitted="false".
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
