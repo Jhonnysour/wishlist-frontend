@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../config/env.dart';
 import '../storage/token_storage.dart';
 
@@ -38,7 +39,9 @@ final dioProvider = Provider<Dio>((ref) {
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
           await tokenStorage.clear();
-          // TODO(auth): invalidate authController so go_router redirects to /login.
+          // Reconstruye el estado de sesión: al releer el token (ya borrado)
+          // pasa a "no autenticado" y go_router redirige a /login.
+          ref.invalidate(authControllerProvider);
         }
         handler.next(error);
       },

@@ -44,6 +44,10 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   freezed_annotation: ^3.1.0
   json_annotation: ">=4.9.0 <4.10.0"
+  # Fijado a 1.8.x: la 1.9.0 trae un android/build.gradle roto (usa el bloque
+  # `kotlin {}` sin aplicar el plugin de Kotlin → "Could not find method kotlin()")
+  # y asume AGP 9.x. La 1.8.1 aplica `id "kotlin-android"` y compila con AGP 8.11.
+  receive_sharing_intent: ">=1.8.1 <1.9.0"
 
 # path_provider_foundation >=2.5.0 migrated its macOS/iOS backend to FFI via the
 # `objective_c` package, whose native build hook makes `build_runner` fail with

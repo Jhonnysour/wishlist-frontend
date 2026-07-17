@@ -1,66 +1,67 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/providers/auth_controller.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/wishlist/presentation/screens/add_item_screen.dart';
+import '../../features/wishlist/presentation/screens/wishlist_screen.dart';
+
 /// Application router.
 ///
-/// Scaffold stage: a single placeholder home route plus a placeholder `/login`.
-/// The auth milestone will add:
-///   - a `refreshListenable` bound to the auth controller, and
-///   - a `redirect` that sends unauthenticated users to `/login`.
+/// Rutas: `/` (lista), `/add` (alta), `/login`, `/register`. El `redirect`
+/// protege la app según el estado de sesión (`authControllerProvider`) y un
+/// `refreshListenable` reevalúa las rutas cada vez que ese estado cambia.
 final routerProvider = Provider<GoRouter>((ref) {
+  // Puente entre el provider de sesión y el refreshListenable de go_router.
+  final authListenable = ValueNotifier<AsyncValue<bool>>(const AsyncLoading());
+  ref.listen<AsyncValue<bool>>(
+    authControllerProvider,
+    (_, next) => authListenable.value = next,
+    fireImmediately: true,
+  );
+  ref.onDispose(authListenable.dispose);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: authListenable,
+    redirect: (context, state) {
+      final auth = authListenable.value;
+      // Mientras se lee el token del almacenamiento seguro, no redirigir.
+      if (auth.isLoading) return null;
+
+      final loggedIn = auth.value ?? false;
+      final loc = state.matchedLocation;
+      final onAuthScreen = loc == '/login' || loc == '/register';
+
+      if (!loggedIn) return onAuthScreen ? null : '/login';
+      if (onAuthScreen) return '/';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/',
         name: 'home',
-        builder: (context, state) => const _PlaceholderScreen(
-          title: 'Wishlist',
-          message: 'Scaffold ready. Wishlist features come next.',
-        ),
+        builder: (context, state) => const WishlistScreen(),
+        routes: [
+          GoRoute(
+            path: 'add',
+            name: 'add',
+            builder: (context, state) => const AddItemScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/login',
         name: 'login',
-        builder: (context, state) => const _PlaceholderScreen(
-          title: 'Sign in',
-          message: 'Login screen placeholder (auth milestone).',
-        ),
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        name: 'register',
+        builder: (context, state) => const RegisterScreen(),
       ),
     ],
-    // TODO(auth): add refreshListenable + redirect wired to authController.
-    redirect: (context, state) => null,
   );
 });
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title, required this.message});
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.checklist_rounded,
-                  size: 64, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
-              Text(message,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

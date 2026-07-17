@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Wishlist (teléfono, localhost)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "preLaunchTask": "adb-reverse",
+      "toolArgs": ["--dart-define=API_BASE_URL=http://localhost:8000"]
+    },
+    {
+      "name": "Wishlist (emulador)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    }
+  ]
+}
