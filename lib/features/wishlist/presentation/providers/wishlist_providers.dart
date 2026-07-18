@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/api/api_exception.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
+import '../../../webview_capture/data/webview_capture_repository.dart';
+import '../../../webview_capture/data/webview_capture_service.dart';
 import '../../data/wishlist_repository.dart';
 import '../../domain/item.dart';
 
@@ -16,19 +19,32 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   static const _pollInterval = Duration(milliseconds: 1800);
   static const _maxPollAttempts = 40; // ~72 s
 
+  /// Items para los que ya se está intentando (o se intentó) la captura por
+  /// WebView, para no dispararla dos veces sobre el mismo item.
+  final Set<String> _capturingIds = {};
+
   @override
   Future<List<Item>> build() async {
     final loggedIn = ref.watch(authControllerProvider).value ?? false;
     if (!loggedIn) return const [];
-    return ref.read(wishlistRepositoryProvider).fetchItems(limit: 50);
+    // Re-fetch cuando cambian los filtros (búsqueda / comprados).
+    final filter = ref.watch(wishlistFilterProvider);
+    return _fetch(filter);
+  }
+
+  Future<List<Item>> _fetch(WishlistFilter filter) {
+    return ref.read(wishlistRepositoryProvider).fetchItems(
+          q: filter.query.isEmpty ? null : filter.query,
+          purchased: filter.purchased,
+          limit: 50,
+        );
   }
 
   /// Recarga la lista (pull-to-refresh). Mantiene la lista actual visible hasta
   /// que llega la nueva.
   Future<void> refresh() async {
-    state = await AsyncValue.guard(
-      () => ref.read(wishlistRepositoryProvider).fetchItems(limit: 50),
-    );
+    final filter = ref.read(wishlistFilterProvider);
+    state = await AsyncValue.guard(() => _fetch(filter));
   }
 
   /// Encola un producto por URL. Lanza [ApiException] si el POST falla.
@@ -51,11 +67,60 @@ class WishlistController extends AsyncNotifier<List<Item>> {
       try {
         final fresh = await repo.fetchItem(id);
         _replace(fresh);
-        if (fresh.status != ItemStatus.pending) return;
+        if (fresh.status != ItemStatus.pending) {
+          // Capa 0: si el scraping de servidor no alcanzó, reintentar con el
+          // HTML que ve un navegador real (Amazon y similares).
+          if (fresh.status == ItemStatus.failed) {
+            unawaited(_captureFallback(fresh));
+          }
+          return;
+        }
       } on ApiException {
         // Fallo transitorio: se reintenta en la próxima vuelta.
       }
     }
+  }
+
+  /// Carga la página en un WebView headless, captura su HTML y pide al backend
+  /// re-extraer desde ahí. Se intenta una sola vez por item.
+  Future<void> _captureFallback(Item item) async {
+    if (_capturingIds.contains(item.id)) return;
+    _capturingIds.add(item.id);
+    try {
+      final html =
+          await ref.read(webViewCaptureServiceProvider).capture(item.originalUrl);
+      if (html == null || html.isEmpty) return;
+      // El item pudo borrarse mientras cargaba el WebView.
+      final list = state.value;
+      if (list == null || !list.any((it) => it.id == item.id)) return;
+      final updated = await ref
+          .read(webViewCaptureRepositoryProvider)
+          .retryFromHtml(item.id, html);
+      _replace(updated);
+    } on ApiException {
+      // Se queda FAILED; el item sigue visible y el usuario puede reintentar.
+    } finally {
+      _capturingIds.remove(item.id);
+    }
+  }
+
+  /// Marca/desmarca como comprado (PATCH). Lanza [ApiException] si falla.
+  Future<void> togglePurchased(String id) async {
+    final list = state.value;
+    if (list == null) return;
+    final current = list.where((it) => it.id == id).firstOrNull;
+    if (current == null) return;
+    final updated = await ref
+        .read(wishlistRepositoryProvider)
+        .setPurchased(id, !current.purchased);
+    _replace(updated);
+  }
+
+  /// Elimina el item (DELETE). Lanza [ApiException] si falla.
+  Future<void> remove(String id) async {
+    await ref.read(wishlistRepositoryProvider).deleteItem(id);
+    final list = state.value ?? const <Item>[];
+    state = AsyncData(list.where((it) => it.id != id).toList());
   }
 
   void _replace(Item updated) {
@@ -71,6 +136,36 @@ class WishlistController extends AsyncNotifier<List<Item>> {
 final wishlistControllerProvider =
     AsyncNotifierProvider<WishlistController, List<Item>>(
   WishlistController.new,
+);
+
+/// Un item de la lista por id (reactivo: se actualiza con el polling y las
+/// acciones). Es `null` si el item ya no está en la lista (p. ej. tras borrar).
+final itemByIdProvider = Provider.family<Item?, String>((ref, id) {
+  final list = ref.watch(wishlistControllerProvider).value ?? const <Item>[];
+  return list.where((it) => it.id == id).firstOrNull;
+});
+
+/// Filtros de la lista: texto de búsqueda (`q`) y estado de compra
+/// (`null` = todos, `true` = comprados, `false` = pendientes).
+typedef WishlistFilter = ({String query, bool? purchased});
+
+class WishlistFilterNotifier extends Notifier<WishlistFilter> {
+  @override
+  WishlistFilter build() => (query: '', purchased: null);
+
+  void setQuery(String query) {
+    if (query == state.query) return;
+    state = (query: query, purchased: state.purchased);
+  }
+
+  void setPurchased(bool? purchased) {
+    state = (query: state.query, purchased: purchased);
+  }
+}
+
+final wishlistFilterProvider =
+    NotifierProvider<WishlistFilterNotifier, WishlistFilter>(
+  WishlistFilterNotifier.new,
 );
 
 /// URL recibida desde la hoja de "Compartir" de Android que aún no se procesa.

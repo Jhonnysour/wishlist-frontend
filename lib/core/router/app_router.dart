@@ -6,6 +6,7 @@ import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/wishlist/presentation/screens/add_item_screen.dart';
+import '../../features/wishlist/presentation/screens/item_detail_screen.dart';
 import '../../features/wishlist/presentation/screens/wishlist_screen.dart';
 
 /// Application router.
@@ -49,6 +50,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'add',
             name: 'add',
             builder: (context, state) => const AddItemScreen(),
+          ),
+          GoRoute(
+            path: 'item/:id',
+            name: 'item',
+            builder: (context, state) =>
+                ItemDetailScreen(id: state.pathParameters['id']!),
           ),
         ],
       ),

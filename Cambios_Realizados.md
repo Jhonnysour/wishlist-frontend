@@ -215,6 +215,41 @@ tocó `env.dart`):
 
 ---
 
+## 2026-07-17 — Milestone Detalle + acciones + búsqueda/filtros (último del plan original)
+
+Completa el CRUD de la wishlist desde la UI y agrega búsqueda/filtros.
+
+### Controller y providers (`wishlist_providers.dart`)
+- `build()` ahora observa `wishlistFilterProvider` y hace `fetchItems(q, purchased)`; se re-ejecuta al
+  cambiar los filtros. Se extrajo `_fetch(filter)` reutilizado por `build` y `refresh`.
+- Nuevos métodos en `WishlistController`: `togglePurchased(id)` (PATCH) y `remove(id)` (DELETE), que
+  actualizan la lista en memoria.
+- `itemByIdProvider` (Provider.family): un item por id, reactivo (se actualiza con el polling y las
+  acciones; `null` si se borró).
+- `WishlistFilter` (record `({String query, bool? purchased})`) + `WishlistFilterNotifier` +
+  `wishlistFilterProvider`. Se agregó `collection: ^1.19.1` como dependencia directa (para
+  `firstOrNull`).
+
+### Pantalla de detalle (`item_detail_screen.dart`)
+- Galería de imágenes (`PageView` + indicadores) con `RemoteImage`, título, precio, descripción,
+  dominio y URL (con botón de copiar). Se adapta a PENDING/FAILED/COMPLETED.
+- Acciones: botón inferior "Marcar como comprado / pendiente" (PATCH, con acento
+  `AppTheme.purchased`) y eliminar en el AppBar (con diálogo de confirmación → DELETE → vuelve a la
+  lista). Si el item deja de existir, muestra un estado neutro.
+
+### Lista (`wishlist_screen.dart`)
+- Barra de búsqueda con debounce (400 ms) → `q`, y `FilterChip`s Todos/Pendientes/Comprados →
+  `purchased`. `skipLoadingOnReload: true` para no parpadear al filtrar. Estado vacío distingue
+  "lista vacía" de "sin resultados". Las tarjetas ahora navegan al detalle (`/item/:id`).
+
+### Router (`app_router.dart`)
+- Nueva subruta `item/:id` → `ItemDetailScreen`.
+
+### Verificación
+- `flutter analyze` → **No issues**; `flutter test` (smoke) → **pasa**; build debug de Android → OK.
+
+---
+
 ## Pendiente (próximos milestones)
 - **Auth:** pantallas login/register, `auth_controller` (AsyncNotifier), persistencia del token,
   `redirect` de go_router + wiring del 401→login. (`/login` es form-urlencoded con `username`+`password`.)

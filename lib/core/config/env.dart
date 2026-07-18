@@ -24,4 +24,19 @@ class Env {
 
   /// All endpoints live under the `/api/v1` prefix.
   static String get apiV1BaseUrl => '$apiBaseUrl/api/v1';
+
+  /// Supabase project URL. Defaults to this project's URL; override with
+  /// `--dart-define=SUPABASE_URL=...` if it ever changes.
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://pyvpxqtfikctmslffmvt.supabase.co',
+  );
+
+  /// Supabase publishable key (the new `sb_publishable_...` client key). Public
+  /// by design, but not hardcoded — pass it at run time:
+  /// `flutter run --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...`
+  /// (Dashboard -> Settings -> API -> "Publishable key").
+  static const String supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
 }

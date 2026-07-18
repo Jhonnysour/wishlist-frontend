@@ -48,6 +48,13 @@ dependencies:
   # `kotlin {}` sin aplicar el plugin de Kotlin → "Could not find method kotlin()")
   # y asume AGP 9.x. La 1.8.1 aplica `id "kotlin-android"` y compila con AGP 8.11.
   receive_sharing_intent: ">=1.8.1 <1.9.0"
+  collection: ^1.19.1
+  # Capa 0: carga páginas en un WebView headless para capturar el HTML ya
+  # renderizado (precios que solo aparecen en un navegador real, p. ej. Amazon).
+  flutter_inappwebview: ^6.1.5
+  # Auth: registro/login y manejo de sesión (con refresh automático) contra
+  # Supabase Auth. El backend solo valida el JWT que emite Supabase.
+  supabase_flutter: ^2.8.0
 
 # path_provider_foundation >=2.5.0 migrated its macOS/iOS backend to FFI via the
 # `objective_c` package, whose native build hook makes `build_runner` fail with
@@ -61,6 +68,8 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Usado solo en tests para mockear la persistencia de sesión de Supabase.
+  shared_preferences: ^2.3.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

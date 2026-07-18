@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,8 +14,6 @@ class WishlistScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(wishlistControllerProvider);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Wishlist'),
@@ -30,33 +30,168 @@ class WishlistScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Agregar'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () =>
-            ref.read(wishlistControllerProvider.notifier).refresh(),
-        child: itemsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => _ErrorState(
-            message: error is ApiException
-                ? error.message
-                : 'No se pudo cargar la lista.',
-            onRetry: () =>
-                ref.invalidate(wishlistControllerProvider),
-          ),
-          data: (items) => items.isEmpty
-              ? const _EmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 96),
-                  itemCount: items.length,
-                  itemBuilder: (context, i) => ItemCard(item: items[i]),
-                ),
-        ),
+      body: Column(
+        children: const [
+          _FilterBar(),
+          Expanded(child: _ItemList()),
+        ],
       ),
     );
   }
 }
 
+class _ItemList extends ConsumerWidget {
+  const _ItemList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final itemsAsync = ref.watch(wishlistControllerProvider);
+    final filter = ref.watch(wishlistFilterProvider);
+    final filtering = filter.query.isNotEmpty || filter.purchased != null;
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(wishlistControllerProvider.notifier).refresh(),
+      child: itemsAsync.when(
+        // No parpadear a spinner al cambiar filtros: mantener la lista previa.
+        skipLoadingOnReload: true,
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _ErrorState(
+          message: error is ApiException
+              ? error.message
+              : 'No se pudo cargar la lista.',
+          onRetry: () => ref.invalidate(wishlistControllerProvider),
+        ),
+        data: (items) => items.isEmpty
+            ? _EmptyState(filtering: filtering)
+            : ListView.builder(
+                padding: const EdgeInsets.only(top: 4, bottom: 96),
+                itemCount: items.length,
+                itemBuilder: (context, i) {
+                  final item = items[i];
+                  return ItemCard(
+                    item: item,
+                    onTap: () => context.push('/item/${item.id}'),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+class _FilterBar extends ConsumerStatefulWidget {
+  const _FilterBar();
+
+  @override
+  ConsumerState<_FilterBar> createState() => _FilterBarState();
+}
+
+class _FilterBarState extends ConsumerState<_FilterBar> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      ref.read(wishlistFilterProvider.notifier).setQuery(value.trim());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final purchased = ref.watch(
+      wishlistFilterProvider.select((f) => f.purchased),
+    );
+    final notifier = ref.read(wishlistFilterProvider.notifier);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            onChanged: _onQueryChanged,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Buscar en tu lista',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _controller.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _controller.clear();
+                        _debounce?.cancel();
+                        notifier.setQuery('');
+                        setState(() {}); // refrescar el suffixIcon
+                      },
+                    ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              _FilterChoice(
+                label: 'Todos',
+                selected: purchased == null,
+                onSelected: () => notifier.setPurchased(null),
+              ),
+              _FilterChoice(
+                label: 'Pendientes',
+                selected: purchased == false,
+                onSelected: () => notifier.setPurchased(false),
+              ),
+              _FilterChoice(
+                label: 'Comprados',
+                selected: purchased == true,
+                onSelected: () => notifier.setPurchased(true),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChoice extends StatelessWidget {
+  const _FilterChoice({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.filtering});
+
+  final bool filtering;
 
   @override
   Widget build(BuildContext context) {
@@ -64,17 +199,25 @@ class _EmptyState extends StatelessWidget {
     // ListView para que el pull-to-refresh funcione aun estando vacío.
     return ListView(
       children: [
-        SizedBox(height: MediaQuery.sizeOf(context).height * 0.22),
-        Icon(Icons.card_giftcard_outlined,
-            size: 72, color: theme.colorScheme.primary),
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.18),
+        Icon(
+          filtering ? Icons.search_off : Icons.card_giftcard_outlined,
+          size: 72,
+          color: theme.colorScheme.primary,
+        ),
         const SizedBox(height: 16),
-        Text('Tu lista está vacía',
-            textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
+        Text(
+          filtering ? 'Sin resultados' : 'Tu lista está vacía',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: 6),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            'Agrega tu primer deseo con el botón “Agregar”.',
+            filtering
+                ? 'Prueba con otra búsqueda o cambia el filtro.'
+                : 'Agrega tu primer deseo con el botón “Agregar”.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -96,7 +239,7 @@ class _ErrorState extends StatelessWidget {
     final theme = Theme.of(context);
     return ListView(
       children: [
-        SizedBox(height: MediaQuery.sizeOf(context).height * 0.22),
+        SizedBox(height: MediaQuery.sizeOf(context).height * 0.18),
         Icon(Icons.cloud_off_outlined,
             size: 64, color: theme.colorScheme.error),
         const SizedBox(height: 16),
