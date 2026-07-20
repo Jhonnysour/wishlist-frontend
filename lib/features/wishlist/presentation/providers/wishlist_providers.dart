@@ -125,6 +125,13 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     _replace(updated);
   }
 
+  /// Renombra el item. Lanza [ApiException] si falla.
+  Future<void> updateTitle(String id, String title) async {
+    final updated =
+        await ref.read(wishlistRepositoryProvider).updateTitle(id, title);
+    _replace(updated);
+  }
+
   /// Elimina el item (DELETE). Lanza [ApiException] si falla.
   Future<void> remove(String id) async {
     await ref.read(wishlistRepositoryProvider).deleteItem(id);

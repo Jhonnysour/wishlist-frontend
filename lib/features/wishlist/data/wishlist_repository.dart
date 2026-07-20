@@ -87,6 +87,19 @@ class WishlistRepository {
     }
   }
 
+  /// `PATCH /items/{id}` — renombra el item (el backend recorta y exige no vacío).
+  Future<Item> updateTitle(String id, String title) async {
+    try {
+      final res = await _dio.patch<Map<String, dynamic>>(
+        '/items/$id',
+        data: {'title': title},
+      );
+      return Item.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// `DELETE /items/{id}` — elimina el item (204).
   Future<void> deleteItem(String id) async {
     try {

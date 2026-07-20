@@ -68,6 +68,55 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
+  Future<void> _editTitle(String? currentTitle) async {
+    final controller = TextEditingController(text: currentTitle ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Editar título'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 255,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Título del producto'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return; // cancelado
+    final trimmed = result.trim();
+    if (trimmed.isEmpty) {
+      _snack('El título no puede estar vacío.');
+      return;
+    }
+    if (trimmed == (currentTitle ?? '').trim()) return; // sin cambios
+
+    setState(() => _working = true);
+    try {
+      await ref
+          .read(wishlistControllerProvider.notifier)
+          .updateTitle(widget.id, trimmed);
+    } on ApiException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('No se pudo actualizar el título.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   Future<void> _editImages(List<String> current) async {
     final result = await Navigator.of(context).push<List<String>>(
       MaterialPageRoute(builder: (_) => _ImageEditorScreen(images: current)),
@@ -129,15 +178,16 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
               onPressed: _working ? null : _togglePurchased,
             )
           : null,
-      body: _Body(item: item),
+      body: _Body(item: item, onEditTitle: () => _editTitle(item.title)),
     );
   }
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.item});
+  const _Body({required this.item, required this.onEditTitle});
 
   final Item item;
+  final VoidCallback onEditTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -172,7 +222,19 @@ class _Body extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: theme.textTheme.headlineSmall),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(title, style: theme.textTheme.headlineSmall),
+                  ),
+                  IconButton(
+                    tooltip: 'Editar título',
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: onEditTitle,
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
