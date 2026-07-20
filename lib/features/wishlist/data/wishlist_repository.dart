@@ -73,6 +73,20 @@ class WishlistRepository {
     }
   }
 
+  /// `PATCH /items/{id}` — cura las imágenes: *images* es un subconjunto
+  /// reordenado de las actuales (la primera es la portada).
+  Future<Item> updateImages(String id, List<String> images) async {
+    try {
+      final res = await _dio.patch<Map<String, dynamic>>(
+        '/items/$id',
+        data: {'images': images},
+      );
+      return Item.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// `DELETE /items/{id}` — elimina el item (204).
   Future<void> deleteItem(String id) async {
     try {

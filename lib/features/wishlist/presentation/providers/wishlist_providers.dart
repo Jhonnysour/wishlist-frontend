@@ -116,6 +116,15 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     _replace(updated);
   }
 
+  /// Cura las imágenes del item (subset reordenado; la primera es portada).
+  /// Lanza [ApiException] si falla.
+  Future<void> updateImages(String id, List<String> images) async {
+    final updated = await ref
+        .read(wishlistRepositoryProvider)
+        .updateImages(id, images);
+    _replace(updated);
+  }
+
   /// Elimina el item (DELETE). Lanza [ApiException] si falla.
   Future<void> remove(String id) async {
     await ref.read(wishlistRepositoryProvider).deleteItem(id);

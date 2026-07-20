@@ -68,6 +68,25 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
+  Future<void> _editImages(List<String> current) async {
+    final result = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(builder: (_) => _ImageEditorScreen(images: current)),
+    );
+    if (result == null) return; // cancelado
+    setState(() => _working = true);
+    try {
+      await ref
+          .read(wishlistControllerProvider.notifier)
+          .updateImages(widget.id, result);
+    } on ApiException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('No se pudieron actualizar las imágenes.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   void _snack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -90,6 +109,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       appBar: AppBar(
         title: const Text('Detalle'),
         actions: [
+          if (item.status == ItemStatus.completed && item.images.isNotEmpty)
+            IconButton(
+              tooltip: 'Editar imágenes',
+              icon: const Icon(Icons.photo_library_outlined),
+              onPressed: _working ? null : () => _editImages(item.images),
+            ),
           IconButton(
             tooltip: 'Eliminar',
             icon: const Icon(Icons.delete_outline),
@@ -351,6 +376,183 @@ class _PurchasedChip extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: AppTheme.purchased)),
         ],
+      ),
+    );
+  }
+}
+
+/// Editor de imágenes: elegir cuáles conservar y cuál es la portada.
+///
+/// Devuelve (via `Navigator.pop`) la lista curada — subconjunto reordenado con
+/// la portada primero — o `null` si se cancela. El backend valida que sea un
+/// subconjunto de las imágenes actuales.
+class _ImageEditorScreen extends StatefulWidget {
+  const _ImageEditorScreen({required this.images});
+
+  final List<String> images;
+
+  @override
+  State<_ImageEditorScreen> createState() => _ImageEditorScreenState();
+}
+
+class _ImageEditorScreenState extends State<_ImageEditorScreen> {
+  late final Set<String> _kept = {...widget.images};
+  late String? _cover = widget.images.isNotEmpty ? widget.images.first : null;
+
+  /// Lista final: portada primero, luego el resto de las conservadas en su
+  /// orden original.
+  List<String> _result() {
+    final kept = widget.images.where(_kept.contains).toList();
+    if (_cover != null && kept.remove(_cover)) kept.insert(0, _cover!);
+    return kept;
+  }
+
+  void _toggleKeep(String url) {
+    setState(() {
+      if (_kept.remove(url)) {
+        if (_cover == url) {
+          _cover = _kept.isEmpty
+              ? null
+              : widget.images.firstWhere(_kept.contains);
+        }
+      } else {
+        _kept.add(url);
+        _cover ??= url;
+      }
+    });
+  }
+
+  void _setCover(String url) {
+    setState(() {
+      _kept.add(url);
+      _cover = url;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Editar imágenes'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_result()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              'Toca una imagen para quitarla o volver a incluirla. Usa la '
+              'estrella para elegir la portada.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: widget.images.length,
+              itemBuilder: (context, i) {
+                final url = widget.images[i];
+                final kept = _kept.contains(url);
+                final isCover = _cover == url;
+                return _EditableTile(
+                  url: url,
+                  kept: kept,
+                  isCover: isCover,
+                  onTap: () => _toggleKeep(url),
+                  onSetCover: () => _setCover(url),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditableTile extends StatelessWidget {
+  const _EditableTile({
+    required this.url,
+    required this.kept,
+    required this.isCover,
+    required this.onTap,
+    required this.onSetCover,
+  });
+
+  final String url;
+  final bool kept;
+  final bool isCover;
+  final VoidCallback onTap;
+  final VoidCallback onSetCover;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Opacity(
+              opacity: kept ? 1 : 0.35,
+              child: RemoteImage(url: url, borderRadius: BorderRadius.zero),
+            ),
+            // Estado "conservar" (esquina superior derecha).
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Icon(
+                kept ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 22,
+                color: kept ? scheme.primary : Colors.white70,
+                shadows: const [Shadow(blurRadius: 3, color: Colors.black54)],
+              ),
+            ),
+            // Portada / botón para hacerla portada (esquina inferior izquierda).
+            Positioned(
+              left: 4,
+              bottom: 4,
+              child: isCover
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('Portada',
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700)),
+                    )
+                  : GestureDetector(
+                      onTap: onSetCover,
+                      child: const Icon(Icons.star_border,
+                          size: 22,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(blurRadius: 3, color: Colors.black54)
+                          ]),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
