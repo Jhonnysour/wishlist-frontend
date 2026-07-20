@@ -86,19 +86,27 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   Future<void> _captureFallback(Item item) async {
     if (_capturingIds.contains(item.id)) return;
     _capturingIds.add(item.id);
+    // Mientras el WebView captura la página, mostrar "extrayendo…" en vez del
+    // error: el FAILED del servidor es prematuro si la Capa 0 aún puede
+    // recuperarlo. Como este `_replace` corre en el mismo turno que el que
+    // puso FAILED, el mensaje de error ni llega a pintarse.
+    _replace(item.copyWith(status: ItemStatus.pending));
     try {
       final html =
           await ref.read(webViewCaptureServiceProvider).capture(item.originalUrl);
-      if (html == null || html.isEmpty) return;
       // El item pudo borrarse mientras cargaba el WebView.
       final list = state.value;
       if (list == null || !list.any((it) => it.id == item.id)) return;
+      if (html == null || html.isEmpty) {
+        _replace(item); // no se pudo capturar -> FAILED real
+        return;
+      }
       final updated = await ref
           .read(webViewCaptureRepositoryProvider)
           .retryFromHtml(item.id, html);
-      _replace(updated);
+      _replace(updated); // COMPLETED, o FAILED si tampoco alcanzó
     } on ApiException {
-      // Se queda FAILED; el item sigue visible y el usuario puede reintentar.
+      _replace(item); // restaura FAILED
     } finally {
       _capturingIds.remove(item.id);
     }
