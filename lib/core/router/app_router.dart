@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/warmup/presentation/warmup_providers.dart';
+import '../../features/warmup/presentation/warmup_screen.dart';
 import '../../features/wishlist/presentation/screens/add_item_screen.dart';
 import '../../features/wishlist/presentation/screens/item_detail_screen.dart';
 import '../../features/wishlist/presentation/screens/wishlist_screen.dart';
@@ -15,29 +17,32 @@ import '../../features/wishlist/presentation/screens/wishlist_screen.dart';
 /// protege la app según el estado de sesión (`authControllerProvider`) y un
 /// `refreshListenable` reevalúa las rutas cada vez que ese estado cambia.
 final routerProvider = Provider<GoRouter>((ref) {
-  // Puente entre el provider de sesión y el refreshListenable de go_router.
-  final authListenable = ValueNotifier<AsyncValue<bool>>(const AsyncLoading());
-  ref.listen<AsyncValue<bool>>(
-    authControllerProvider,
-    (_, next) => authListenable.value = next,
-    fireImmediately: true,
-  );
-  ref.onDispose(authListenable.dispose);
+  // Bump-based listenable: go_router reevalúa cuando cambia la sesión O el
+  // estado de "server listo".
+  final refresh = ValueNotifier<int>(0);
+  ref.listen(authControllerProvider, (_, _) => refresh.value++,
+      fireImmediately: true);
+  ref.listen(serverReadyProvider, (_, _) => refresh.value++);
+  ref.onDispose(refresh.dispose);
 
   return GoRouter(
     initialLocation: '/',
-    refreshListenable: authListenable,
+    refreshListenable: refresh,
     redirect: (context, state) {
-      final auth = authListenable.value;
-      // Mientras se lee el token del almacenamiento seguro, no redirigir.
+      final auth = ref.read(authControllerProvider);
+      // Mientras se lee la sesión, no redirigir.
       if (auth.isLoading) return null;
 
       final loggedIn = auth.value ?? false;
+      final serverReady = ref.read(serverReadyProvider);
       final loc = state.matchedLocation;
       final onAuthScreen = loc == '/login' || loc == '/register';
+      final onWarmup = loc == '/warmup';
 
       if (!loggedIn) return onAuthScreen ? null : '/login';
-      if (onAuthScreen) return '/';
+      // Logueado: esperar a que el backend responda antes de entrar a la app.
+      if (!serverReady) return onWarmup ? null : '/warmup';
+      if (onAuthScreen || onWarmup) return '/';
       return null;
     },
     routes: [
@@ -58,6 +63,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ItemDetailScreen(id: state.pathParameters['id']!),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/warmup',
+        name: 'warmup',
+        builder: (context, state) => const WarmupScreen(),
       ),
       GoRoute(
         path: '/login',

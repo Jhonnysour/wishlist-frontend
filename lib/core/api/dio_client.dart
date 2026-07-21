@@ -18,8 +18,11 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: Env.apiV1BaseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 20),
+      // Generosos a propósito: en la capa gratis de Render, la 1ª petición tras
+      // dormirse aguanta el arranque en frío (~50s) en vez de morir. La pantalla
+      // de warm-up hace este espera explícita y amigable.
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
       contentType: Headers.jsonContentType,
     ),
   );
