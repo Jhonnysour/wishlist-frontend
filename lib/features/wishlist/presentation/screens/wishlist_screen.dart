@@ -5,35 +5,47 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/api/api_exception.dart';
-import '../../../auth/presentation/providers/auth_controller.dart';
+import '../../../lists/presentation/providers/lists_providers.dart';
 import '../providers/wishlist_providers.dart';
 import '../widgets/item_card.dart';
 
-class WishlistScreen extends ConsumerWidget {
-  const WishlistScreen({super.key});
+/// Los productos de una lista. Apunta el `WishlistController` a esta lista.
+class WishlistScreen extends ConsumerStatefulWidget {
+  const WishlistScreen({super.key, required this.listId});
+
+  final String listId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WishlistScreen> createState() => _WishlistScreenState();
+}
+
+class _WishlistScreenState extends ConsumerState<WishlistScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Red de seguridad (deep-link/back): asegura que el controller apunte a
+    // esta lista. Post-frame para no modificar el provider durante el build.
+    // En el flujo normal ya se setea en el onTap de la lista (sin parpadeo).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(currentListIdProvider.notifier).set(widget.listId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name =
+        ref.watch(listByIdProvider(widget.listId))?.name ?? 'Lista';
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Wishlist'),
-        actions: [
-          IconButton(
-            tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(name)),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/add'),
+        onPressed: () => context.push('/lists/${widget.listId}/add'),
         icon: const Icon(Icons.add),
         label: const Text('Agregar'),
       ),
       body: Column(
-        children: const [
-          _FilterBar(),
-          Expanded(child: _ItemList()),
+        children: [
+          const _FilterBar(),
+          Expanded(child: _ItemList(listId: widget.listId)),
         ],
       ),
     );
@@ -41,7 +53,9 @@ class WishlistScreen extends ConsumerWidget {
 }
 
 class _ItemList extends ConsumerWidget {
-  const _ItemList();
+  const _ItemList({required this.listId});
+
+  final String listId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,7 +84,8 @@ class _ItemList extends ConsumerWidget {
                   final item = items[i];
                   return ItemCard(
                     item: item,
-                    onTap: () => context.push('/item/${item.id}'),
+                    onTap: () =>
+                        context.push('/lists/$listId/item/${item.id}'),
                   );
                 },
               ),

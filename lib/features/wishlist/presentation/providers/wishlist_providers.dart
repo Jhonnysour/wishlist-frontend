@@ -27,13 +27,17 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   Future<List<Item>> build() async {
     final loggedIn = ref.watch(authControllerProvider).value ?? false;
     if (!loggedIn) return const [];
+    // Los items son de la lista que se está viendo.
+    final listId = ref.watch(currentListIdProvider);
+    if (listId == null) return const [];
     // Re-fetch cuando cambian los filtros (búsqueda / comprados).
     final filter = ref.watch(wishlistFilterProvider);
-    return _fetch(filter);
+    return _fetch(listId, filter);
   }
 
-  Future<List<Item>> _fetch(WishlistFilter filter) {
+  Future<List<Item>> _fetch(String listId, WishlistFilter filter) {
     return ref.read(wishlistRepositoryProvider).fetchItems(
+          listId: listId,
           q: filter.query.isEmpty ? null : filter.query,
           purchased: filter.purchased,
           limit: 50,
@@ -43,14 +47,18 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   /// Recarga la lista (pull-to-refresh). Mantiene la lista actual visible hasta
   /// que llega la nueva.
   Future<void> refresh() async {
+    final listId = ref.read(currentListIdProvider);
+    if (listId == null) return;
     final filter = ref.read(wishlistFilterProvider);
-    state = await AsyncValue.guard(() => _fetch(filter));
+    state = await AsyncValue.guard(() => _fetch(listId, filter));
   }
 
-  /// Encola un producto por URL. Lanza [ApiException] si el POST falla.
+  /// Encola un producto por URL en la lista actual. Lanza [ApiException] si falla.
   Future<void> addByUrl(String url) async {
+    final listId = ref.read(currentListIdProvider);
+    if (listId == null) return;
     final repo = ref.read(wishlistRepositoryProvider);
-    final created = await repo.addItem(url); // 202 PENDING
+    final created = await repo.addItem(url, listId: listId); // 202 PENDING
     final current = state.value ?? const <Item>[];
     state = AsyncData([created, ...current]); // newest-first
     unawaited(_poll(created.id));
@@ -161,6 +169,20 @@ final wishlistControllerProvider =
     AsyncNotifierProvider<WishlistController, List<Item>>(
   WishlistController.new,
 );
+
+/// La lista que se está viendo ahora mismo. La setea `WishlistScreen` al entrar;
+/// el `WishlistController` trae los items de esta lista. La navegación es
+/// jerárquica (listas → una lista → item), así que nunca hay dos listas
+/// apiladas y este valor siempre corresponde a la pantalla visible.
+class CurrentListId extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+}
+
+final currentListIdProvider =
+    NotifierProvider<CurrentListId, String?>(CurrentListId.new);
 
 /// Un item de la lista por id (reactivo: se actualiza con el polling y las
 /// acciones). Es `null` si el item ya no está en la lista (p. ej. tras borrar).

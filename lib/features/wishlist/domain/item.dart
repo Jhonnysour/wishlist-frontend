@@ -20,6 +20,7 @@ enum ItemStatus {
 abstract class Item with _$Item {
   const factory Item({
     required String id,
+    @JsonKey(name: 'list_id') String? listId,
     @JsonKey(name: 'original_url') required String originalUrl,
     String? title,
     // Backend sends a JSON number (e.g. 63.0) or null; json_serializable casts

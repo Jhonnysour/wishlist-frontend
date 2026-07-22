@@ -14,6 +14,7 @@ class WishlistRepository {
   /// `GET /items` — lista (más nuevos primero). Filtros opcionales `q` y
   /// `purchased`; paginación con `limit` (1-100) y `offset`.
   Future<List<Item>> fetchItems({
+    String? listId,
     String? q,
     bool? purchased,
     int limit = 20,
@@ -23,6 +24,7 @@ class WishlistRepository {
       final res = await _dio.get<List<dynamic>>(
         '/items',
         queryParameters: {
+          'list_id': ?listId,
           if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
           'purchased': ?purchased,
           'limit': limit,
@@ -47,12 +49,13 @@ class WishlistRepository {
     }
   }
 
-  /// `POST /items` — encola el scraping. Responde 202 con `status: PENDING`.
-  Future<Item> addItem(String url) async {
+  /// `POST /items` — encola el scraping en una lista. Responde 202 (PENDING).
+  /// Si `listId` es null, el backend lo agrega a la lista por defecto.
+  Future<Item> addItem(String url, {String? listId}) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/items',
-        data: {'url': url},
+        data: {'url': url, 'list_id': ?listId},
       );
       return Item.fromJson(res.data!);
     } on DioException catch (e) {

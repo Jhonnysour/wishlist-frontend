@@ -7,6 +7,8 @@ import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import '../../../../core/api/api_exception.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
+import '../../../lists/presentation/providers/lists_providers.dart';
+import '../../data/wishlist_repository.dart';
 import '../providers/wishlist_providers.dart';
 
 /// Key global del ScaffoldMessenger, para mostrar SnackBars desde fuera del
@@ -82,9 +84,21 @@ class _ShareIntentListenerState extends ConsumerState<ShareIntentListener> {
 
   Future<void> _addShared(String url) async {
     final messenger = scaffoldMessengerKey.currentState;
-    ref.read(routerProvider).go('/');
     try {
-      await ref.read(wishlistControllerProvider.notifier).addByUrl(url);
+      // Un enlace compartido no viene con lista: lo agregamos a la lista por
+      // defecto (la más antigua) y navegamos ahí, para reusar el flujo completo
+      // (optimista + polling + Capa 0).
+      final lists = await ref.read(listsControllerProvider.future);
+      if (lists.isEmpty) {
+        // Edge: sin listas -> el backend crea la default al no mandar list_id.
+        await ref.read(wishlistRepositoryProvider).addItem(url);
+        ref.invalidate(listsControllerProvider);
+      } else {
+        final defaultId = lists.first.id;
+        ref.read(currentListIdProvider.notifier).set(defaultId);
+        ref.read(routerProvider).go('/lists/$defaultId');
+        await ref.read(wishlistControllerProvider.notifier).addByUrl(url);
+      }
       messenger
         ?..hideCurrentSnackBar()
         ..showSnackBar(

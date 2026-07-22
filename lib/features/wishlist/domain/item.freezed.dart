@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Item {
 
- String get id;@JsonKey(name: 'original_url') String get originalUrl; String? get title;// Backend sends a JSON number (e.g. 63.0) or null; json_serializable casts
+ String get id;@JsonKey(name: 'list_id') String? get listId;@JsonKey(name: 'original_url') String get originalUrl; String? get title;// Backend sends a JSON number (e.g. 63.0) or null; json_serializable casts
 // the incoming `num` to `double`.
  double? get price; List<String> get images; String? get description;@JsonKey(name: 'domain_source') String? get domainSource; ItemStatus get status; bool get purchased;
 /// Create a copy of Item
@@ -30,16 +30,16 @@ $ItemCopyWith<Item> get copyWith => _$ItemCopyWithImpl<Item>(this as Item, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Item&&(identical(other.id, id) || other.id == id)&&(identical(other.originalUrl, originalUrl) || other.originalUrl == originalUrl)&&(identical(other.title, title) || other.title == title)&&(identical(other.price, price) || other.price == price)&&const DeepCollectionEquality().equals(other.images, images)&&(identical(other.description, description) || other.description == description)&&(identical(other.domainSource, domainSource) || other.domainSource == domainSource)&&(identical(other.status, status) || other.status == status)&&(identical(other.purchased, purchased) || other.purchased == purchased));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Item&&(identical(other.id, id) || other.id == id)&&(identical(other.listId, listId) || other.listId == listId)&&(identical(other.originalUrl, originalUrl) || other.originalUrl == originalUrl)&&(identical(other.title, title) || other.title == title)&&(identical(other.price, price) || other.price == price)&&const DeepCollectionEquality().equals(other.images, images)&&(identical(other.description, description) || other.description == description)&&(identical(other.domainSource, domainSource) || other.domainSource == domainSource)&&(identical(other.status, status) || other.status == status)&&(identical(other.purchased, purchased) || other.purchased == purchased));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,originalUrl,title,price,const DeepCollectionEquality().hash(images),description,domainSource,status,purchased);
+int get hashCode => Object.hash(runtimeType,id,listId,originalUrl,title,price,const DeepCollectionEquality().hash(images),description,domainSource,status,purchased);
 
 @override
 String toString() {
-  return 'Item(id: $id, originalUrl: $originalUrl, title: $title, price: $price, images: $images, description: $description, domainSource: $domainSource, status: $status, purchased: $purchased)';
+  return 'Item(id: $id, listId: $listId, originalUrl: $originalUrl, title: $title, price: $price, images: $images, description: $description, domainSource: $domainSource, status: $status, purchased: $purchased)';
 }
 
 
@@ -50,7 +50,7 @@ abstract mixin class $ItemCopyWith<$Res>  {
   factory $ItemCopyWith(Item value, $Res Function(Item) _then) = _$ItemCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(name: 'original_url') String originalUrl, String? title, double? price, List<String> images, String? description,@JsonKey(name: 'domain_source') String? domainSource, ItemStatus status, bool purchased
+ String id,@JsonKey(name: 'list_id') String? listId,@JsonKey(name: 'original_url') String originalUrl, String? title, double? price, List<String> images, String? description,@JsonKey(name: 'domain_source') String? domainSource, ItemStatus status, bool purchased
 });
 
 
@@ -67,10 +67,11 @@ class _$ItemCopyWithImpl<$Res>
 
 /// Create a copy of Item
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? originalUrl = null,Object? title = freezed,Object? price = freezed,Object? images = null,Object? description = freezed,Object? domainSource = freezed,Object? status = null,Object? purchased = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? listId = freezed,Object? originalUrl = null,Object? title = freezed,Object? price = freezed,Object? images = null,Object? description = freezed,Object? domainSource = freezed,Object? status = null,Object? purchased = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,originalUrl: null == originalUrl ? _self.originalUrl : originalUrl // ignore: cast_nullable_to_non_nullable
+as String,listId: freezed == listId ? _self.listId : listId // ignore: cast_nullable_to_non_nullable
+as String?,originalUrl: null == originalUrl ? _self.originalUrl : originalUrl // ignore: cast_nullable_to_non_nullable
 as String,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,price: freezed == price ? _self.price : price // ignore: cast_nullable_to_non_nullable
 as double?,images: null == images ? _self.images : images // ignore: cast_nullable_to_non_nullable
@@ -163,10 +164,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'list_id')  String? listId, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Item() when $default != null:
-return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
+return $default(_that.id,_that.listId,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
   return orElse();
 
 }
@@ -184,10 +185,10 @@ return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'list_id')  String? listId, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)  $default,) {final _that = this;
 switch (_that) {
 case _Item():
-return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
+return $default(_that.id,_that.listId,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +205,10 @@ return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(name: 'list_id')  String? listId, @JsonKey(name: 'original_url')  String originalUrl,  String? title,  double? price,  List<String> images,  String? description, @JsonKey(name: 'domain_source')  String? domainSource,  ItemStatus status,  bool purchased)?  $default,) {final _that = this;
 switch (_that) {
 case _Item() when $default != null:
-return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
+return $default(_that.id,_that.listId,_that.originalUrl,_that.title,_that.price,_that.images,_that.description,_that.domainSource,_that.status,_that.purchased);case _:
   return null;
 
 }
@@ -219,10 +220,11 @@ return $default(_that.id,_that.originalUrl,_that.title,_that.price,_that.images,
 @JsonSerializable()
 
 class _Item implements Item {
-  const _Item({required this.id, @JsonKey(name: 'original_url') required this.originalUrl, this.title, this.price, final  List<String> images = const <String>[], this.description, @JsonKey(name: 'domain_source') this.domainSource, required this.status, this.purchased = false}): _images = images;
+  const _Item({required this.id, @JsonKey(name: 'list_id') this.listId, @JsonKey(name: 'original_url') required this.originalUrl, this.title, this.price, final  List<String> images = const <String>[], this.description, @JsonKey(name: 'domain_source') this.domainSource, required this.status, this.purchased = false}): _images = images;
   factory _Item.fromJson(Map<String, dynamic> json) => _$ItemFromJson(json);
 
 @override final  String id;
+@override@JsonKey(name: 'list_id') final  String? listId;
 @override@JsonKey(name: 'original_url') final  String originalUrl;
 @override final  String? title;
 // Backend sends a JSON number (e.g. 63.0) or null; json_serializable casts
@@ -253,16 +255,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Item&&(identical(other.id, id) || other.id == id)&&(identical(other.originalUrl, originalUrl) || other.originalUrl == originalUrl)&&(identical(other.title, title) || other.title == title)&&(identical(other.price, price) || other.price == price)&&const DeepCollectionEquality().equals(other._images, _images)&&(identical(other.description, description) || other.description == description)&&(identical(other.domainSource, domainSource) || other.domainSource == domainSource)&&(identical(other.status, status) || other.status == status)&&(identical(other.purchased, purchased) || other.purchased == purchased));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Item&&(identical(other.id, id) || other.id == id)&&(identical(other.listId, listId) || other.listId == listId)&&(identical(other.originalUrl, originalUrl) || other.originalUrl == originalUrl)&&(identical(other.title, title) || other.title == title)&&(identical(other.price, price) || other.price == price)&&const DeepCollectionEquality().equals(other._images, _images)&&(identical(other.description, description) || other.description == description)&&(identical(other.domainSource, domainSource) || other.domainSource == domainSource)&&(identical(other.status, status) || other.status == status)&&(identical(other.purchased, purchased) || other.purchased == purchased));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,originalUrl,title,price,const DeepCollectionEquality().hash(_images),description,domainSource,status,purchased);
+int get hashCode => Object.hash(runtimeType,id,listId,originalUrl,title,price,const DeepCollectionEquality().hash(_images),description,domainSource,status,purchased);
 
 @override
 String toString() {
-  return 'Item(id: $id, originalUrl: $originalUrl, title: $title, price: $price, images: $images, description: $description, domainSource: $domainSource, status: $status, purchased: $purchased)';
+  return 'Item(id: $id, listId: $listId, originalUrl: $originalUrl, title: $title, price: $price, images: $images, description: $description, domainSource: $domainSource, status: $status, purchased: $purchased)';
 }
 
 
@@ -273,7 +275,7 @@ abstract mixin class _$ItemCopyWith<$Res> implements $ItemCopyWith<$Res> {
   factory _$ItemCopyWith(_Item value, $Res Function(_Item) _then) = __$ItemCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(name: 'original_url') String originalUrl, String? title, double? price, List<String> images, String? description,@JsonKey(name: 'domain_source') String? domainSource, ItemStatus status, bool purchased
+ String id,@JsonKey(name: 'list_id') String? listId,@JsonKey(name: 'original_url') String originalUrl, String? title, double? price, List<String> images, String? description,@JsonKey(name: 'domain_source') String? domainSource, ItemStatus status, bool purchased
 });
 
 
@@ -290,10 +292,11 @@ class __$ItemCopyWithImpl<$Res>
 
 /// Create a copy of Item
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? originalUrl = null,Object? title = freezed,Object? price = freezed,Object? images = null,Object? description = freezed,Object? domainSource = freezed,Object? status = null,Object? purchased = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? listId = freezed,Object? originalUrl = null,Object? title = freezed,Object? price = freezed,Object? images = null,Object? description = freezed,Object? domainSource = freezed,Object? status = null,Object? purchased = null,}) {
   return _then(_Item(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,originalUrl: null == originalUrl ? _self.originalUrl : originalUrl // ignore: cast_nullable_to_non_nullable
+as String,listId: freezed == listId ? _self.listId : listId // ignore: cast_nullable_to_non_nullable
+as String?,originalUrl: null == originalUrl ? _self.originalUrl : originalUrl // ignore: cast_nullable_to_non_nullable
 as String,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,price: freezed == price ? _self.price : price // ignore: cast_nullable_to_non_nullable
 as double?,images: null == images ? _self._images : images // ignore: cast_nullable_to_non_nullable

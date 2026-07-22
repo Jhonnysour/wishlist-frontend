@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/lists/presentation/screens/lists_screen.dart';
 import '../../features/warmup/presentation/warmup_providers.dart';
 import '../../features/warmup/presentation/warmup_screen.dart';
 import '../../features/wishlist/presentation/screens/add_item_screen.dart';
@@ -48,19 +49,27 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        name: 'home',
-        builder: (context, state) => const WishlistScreen(),
+        name: 'lists',
+        builder: (context, state) => const ListsScreen(),
         routes: [
           GoRoute(
-            path: 'add',
-            name: 'add',
-            builder: (context, state) => const AddItemScreen(),
-          ),
-          GoRoute(
-            path: 'item/:id',
-            name: 'item',
+            path: 'lists/:id',
+            name: 'list',
             builder: (context, state) =>
-                ItemDetailScreen(id: state.pathParameters['id']!),
+                WishlistScreen(listId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'add',
+                name: 'add',
+                builder: (context, state) => const AddItemScreen(),
+              ),
+              GoRoute(
+                path: 'item/:itemId',
+                name: 'item',
+                builder: (context, state) =>
+                    ItemDetailScreen(id: state.pathParameters['itemId']!),
+              ),
+            ],
           ),
         ],
       ),
