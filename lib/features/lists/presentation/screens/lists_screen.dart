@@ -83,8 +83,11 @@ class _ListCard extends ConsumerWidget {
           ],
         ),
         onTap: () {
-          // Apuntar el controller a esta lista antes de navegar (sin parpadeo).
+          // Apuntar el controller a esta lista y resetear su estado, para que
+          // muestre su propio spinner y no los items (o el "vacío") de la lista
+          // anterior por unos ms.
           ref.read(currentListIdProvider.notifier).set(list.id);
+          ref.invalidate(wishlistControllerProvider);
           context.push('/lists/${list.id}');
         },
       ),
