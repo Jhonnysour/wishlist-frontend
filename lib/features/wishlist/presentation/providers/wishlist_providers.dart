@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/api/api_exception.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
+import '../../../lists/presentation/providers/lists_providers.dart';
 import '../../../webview_capture/data/webview_capture_repository.dart';
 import '../../../webview_capture/data/webview_capture_service.dart';
 import '../../data/wishlist_repository.dart';
@@ -61,6 +62,8 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     final created = await repo.addItem(url, listId: listId); // 202 PENDING
     final current = state.value ?? const <Item>[];
     state = AsyncData([created, ...current]); // newest-first
+    // Mantener el contador de la vista de listas al día, sin refetch.
+    ref.read(listsControllerProvider.notifier).bumpCount(listId, 1);
     unawaited(_poll(created.id));
   }
 
@@ -153,6 +156,10 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     await ref.read(wishlistRepositoryProvider).deleteItem(id);
     final list = state.value ?? const <Item>[];
     state = AsyncData(list.where((it) => it.id != id).toList());
+    final listId = ref.read(currentListIdProvider);
+    if (listId != null) {
+      ref.read(listsControllerProvider.notifier).bumpCount(listId, -1);
+    }
   }
 
   void _replace(Item updated) {

@@ -37,6 +37,21 @@ class ListsController extends AsyncNotifier<List<ProductList>> {
     );
   }
 
+  /// Ajuste optimista del contador (al agregar/borrar items en una lista), para
+  /// que la vista de listas se actualice sin refetch. Coincide con el COUNT del
+  /// backend (cuenta todos los items sin importar su status).
+  void bumpCount(String listId, int delta) {
+    final list = state.value;
+    if (list == null) return;
+    state = AsyncData([
+      for (final l in list)
+        if (l.id == listId)
+          l.copyWith(itemCount: (l.itemCount + delta).clamp(0, 1 << 31))
+        else
+          l,
+    ]);
+  }
+
   void _replace(ProductList updated) {
     final list = state.value;
     if (list == null) return;

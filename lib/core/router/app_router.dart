@@ -31,14 +31,16 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
-      // Mientras se lee la sesión, no redirigir.
-      if (auth.isLoading) return null;
-
-      final loggedIn = auth.value ?? false;
       final serverReady = ref.read(serverReadyProvider);
       final loc = state.matchedLocation;
       final onAuthScreen = loc == '/login' || loc == '/register';
       final onWarmup = loc == '/warmup';
+
+      // Mientras se lee la sesión, mostrar el splash (logo) en vez de dejar ver
+      // login/listas por un instante.
+      if (auth.isLoading) return onWarmup ? null : '/warmup';
+
+      final loggedIn = auth.value ?? false;
 
       if (!loggedIn) return onAuthScreen ? null : '/login';
       // Logueado: esperar a que el backend responda antes de entrar a la app.

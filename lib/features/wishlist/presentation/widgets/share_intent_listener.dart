@@ -94,9 +94,14 @@ class _ShareIntentListenerState extends ConsumerState<ShareIntentListener> {
         await ref.read(wishlistRepositoryProvider).addItem(url);
         ref.invalidate(listsControllerProvider);
       } else {
-        final defaultId = lists.first.id;
-        ref.read(currentListIdProvider.notifier).set(defaultId);
-        ref.read(routerProvider).go('/lists/$defaultId');
+        // Preferir la lista que se estaba viendo (app en segundo plano); si no
+        // hay o ya no existe (app reabierta en frío), usar la default.
+        final current = ref.read(currentListIdProvider);
+        final targetId = (current != null && lists.any((l) => l.id == current))
+            ? current
+            : lists.first.id;
+        ref.read(currentListIdProvider.notifier).set(targetId);
+        ref.read(routerProvider).go('/lists/$targetId');
         await ref.read(wishlistControllerProvider.notifier).addByUrl(url);
       }
       messenger
