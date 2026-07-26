@@ -63,13 +63,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'add',
                 name: 'add',
-                builder: (context, state) => const AddItemScreen(),
+                builder: (context, state) =>
+                    AddItemScreen(listId: state.pathParameters['id']!),
               ),
               GoRoute(
                 path: 'item/:itemId',
                 name: 'item',
-                builder: (context, state) =>
-                    ItemDetailScreen(id: state.pathParameters['itemId']!),
+                builder: (context, state) => ItemDetailScreen(
+                  listId: state.pathParameters['id']!,
+                  id: state.pathParameters['itemId']!,
+                ),
               ),
             ],
           ),

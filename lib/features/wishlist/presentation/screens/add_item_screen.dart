@@ -7,7 +7,10 @@ import '../../../../core/api/api_exception.dart';
 import '../providers/wishlist_providers.dart';
 
 class AddItemScreen extends ConsumerStatefulWidget {
-  const AddItemScreen({super.key});
+  const AddItemScreen({super.key, required this.listId});
+
+  /// La lista a la que se agrega el producto.
+  final String listId;
 
   @override
   ConsumerState<AddItemScreen> createState() => _AddItemScreenState();
@@ -43,7 +46,7 @@ class _AddItemScreenState extends ConsumerState<AddItemScreen> {
     setState(() => _submitting = true);
     try {
       await ref
-          .read(wishlistControllerProvider.notifier)
+          .read(wishlistControllerProvider(widget.listId).notifier)
           .addByUrl(_urlCtrl.text.trim());
       if (mounted) {
         context.pop();

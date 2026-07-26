@@ -11,12 +11,20 @@ import '../../../webview_capture/data/webview_capture_service.dart';
 import '../../data/wishlist_repository.dart';
 import '../../domain/item.dart';
 
-/// Estado de la lista de deseos.
+/// Estado de los items de **una** lista.
 ///
-/// `build()` observa la sesión: al iniciar sesión trae los items, al cerrarla
-/// la lista queda vacía. `addByUrl` inserta el item PENDING de forma optimista
-/// y hace polling a `GET /items/{id}` hasta que el scraping termina.
+/// Hay una instancia por `listId` (ver [wishlistControllerProvider]): así, abrir
+/// otra lista monta un provider nuevo que arranca en `AsyncLoading` limpio, sin
+/// arrastrar los items de la lista anterior. `build()` observa la sesión: al
+/// iniciar sesión trae los items, al cerrarla la lista queda vacía. `addByUrl`
+/// inserta el item PENDING de forma optimista y hace polling a `GET /items/{id}`
+/// hasta que el scraping termina.
 class WishlistController extends AsyncNotifier<List<Item>> {
+  WishlistController(this.listId);
+
+  /// La lista a la que pertenecen estos items (argumento de la family).
+  final String listId;
+
   static const _pollInterval = Duration(milliseconds: 1800);
   static const _maxPollAttempts = 40; // ~72 s
 
@@ -28,15 +36,12 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   Future<List<Item>> build() async {
     final loggedIn = ref.watch(authControllerProvider).value ?? false;
     if (!loggedIn) return const [];
-    // Los items son de la lista que se está viendo.
-    final listId = ref.watch(currentListIdProvider);
-    if (listId == null) return const [];
-    // Re-fetch cuando cambian los filtros (búsqueda / comprados).
-    final filter = ref.watch(wishlistFilterProvider);
-    return _fetch(listId, filter);
+    // Re-fetch cuando cambian los filtros de esta lista (búsqueda / comprados).
+    final filter = ref.watch(wishlistFilterProvider(listId));
+    return _fetch(filter);
   }
 
-  Future<List<Item>> _fetch(String listId, WishlistFilter filter) {
+  Future<List<Item>> _fetch(WishlistFilter filter) {
     return ref.read(wishlistRepositoryProvider).fetchItems(
           listId: listId,
           q: filter.query.isEmpty ? null : filter.query,
@@ -48,16 +53,12 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   /// Recarga la lista (pull-to-refresh). Mantiene la lista actual visible hasta
   /// que llega la nueva.
   Future<void> refresh() async {
-    final listId = ref.read(currentListIdProvider);
-    if (listId == null) return;
-    final filter = ref.read(wishlistFilterProvider);
-    state = await AsyncValue.guard(() => _fetch(listId, filter));
+    final filter = ref.read(wishlistFilterProvider(listId));
+    state = await AsyncValue.guard(() => _fetch(filter));
   }
 
-  /// Encola un producto por URL en la lista actual. Lanza [ApiException] si falla.
+  /// Encola un producto por URL en esta lista. Lanza [ApiException] si falla.
   Future<void> addByUrl(String url) async {
-    final listId = ref.read(currentListIdProvider);
-    if (listId == null) return;
     final repo = ref.read(wishlistRepositoryProvider);
     final created = await repo.addItem(url, listId: listId); // 202 PENDING
     final current = state.value ?? const <Item>[];
@@ -156,10 +157,7 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     await ref.read(wishlistRepositoryProvider).deleteItem(id);
     final list = state.value ?? const <Item>[];
     state = AsyncData(list.where((it) => it.id != id).toList());
-    final listId = ref.read(currentListIdProvider);
-    if (listId != null) {
-      ref.read(listsControllerProvider.notifier).bumpCount(listId, -1);
-    }
+    ref.read(listsControllerProvider.notifier).bumpCount(listId, -1);
   }
 
   void _replace(Item updated) {
@@ -172,15 +170,25 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   }
 }
 
+/// Los items de una lista, keyed por `listId`.
+///
+/// Que el `listId` sea parte de la identidad del provider (y no un estado
+/// mutable aparte) es lo que garantiza que abrir otra lista empiece en un
+/// `AsyncLoading` limpio: `when()` solo se salta el spinner cuando el estado de
+/// carga arrastra un valor previo, y una lista recién abierta no tiene ninguno.
+///
+/// No es `autoDispose` a propósito: `addByUrl` hace polling de hasta ~72 s y
+/// tiene que sobrevivir a que el usuario vuelva a la pantalla de listas.
 final wishlistControllerProvider =
-    AsyncNotifierProvider<WishlistController, List<Item>>(
+    AsyncNotifierProvider.family<WishlistController, List<Item>, String>(
   WishlistController.new,
 );
 
-/// La lista que se está viendo ahora mismo. La setea `WishlistScreen` al entrar;
-/// el `WishlistController` trae los items de esta lista. La navegación es
-/// jerárquica (listas → una lista → item), así que nunca hay dos listas
-/// apiladas y este valor siempre corresponde a la pantalla visible.
+/// La lista que se está viendo ahora mismo. La setea `WishlistScreen` al entrar.
+///
+/// Ya no decide qué items se cargan (de eso se encarga el argumento de
+/// [wishlistControllerProvider]); solo sirve para que un enlace compartido caiga
+/// en la lista que el usuario estaba viendo (ver `ShareIntentListener`).
 class CurrentListId extends Notifier<String?> {
   @override
   String? build() => null;
@@ -191,11 +199,13 @@ class CurrentListId extends Notifier<String?> {
 final currentListIdProvider =
     NotifierProvider<CurrentListId, String?>(CurrentListId.new);
 
-/// Un item de la lista por id (reactivo: se actualiza con el polling y las
+/// Un item de una lista por id (reactivo: se actualiza con el polling y las
 /// acciones). Es `null` si el item ya no está en la lista (p. ej. tras borrar).
-final itemByIdProvider = Provider.family<Item?, String>((ref, id) {
-  final list = ref.watch(wishlistControllerProvider).value ?? const <Item>[];
-  return list.where((it) => it.id == id).firstOrNull;
+final itemByIdProvider =
+    Provider.family<Item?, ({String listId, String itemId})>((ref, arg) {
+  final list =
+      ref.watch(wishlistControllerProvider(arg.listId)).value ?? const <Item>[];
+  return list.where((it) => it.id == arg.itemId).firstOrNull;
 });
 
 /// Filtros de la lista: texto de búsqueda (`q`) y estado de compra
@@ -216,9 +226,11 @@ class WishlistFilterNotifier extends Notifier<WishlistFilter> {
   }
 }
 
+/// Los filtros son por lista: cada una recuerda los suyos y ninguna hereda los
+/// de otra al abrirla.
 final wishlistFilterProvider =
-    NotifierProvider<WishlistFilterNotifier, WishlistFilter>(
-  WishlistFilterNotifier.new,
+    NotifierProvider.family<WishlistFilterNotifier, WishlistFilter, String>(
+  (_) => WishlistFilterNotifier(),
 );
 
 /// URL recibida desde la hoja de "Compartir" de Android que aún no se procesa.

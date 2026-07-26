@@ -250,6 +250,58 @@ Completa el CRUD de la wishlist desde la UI y agrega búsqueda/filtros.
 
 ---
 
+## 2026-07-26 — Fix real del parpadeo de items al cambiar de lista
+
+Al abrir una lista se veían por unos ms los items de la lista anterior. El intento previo
+(`d399e68`, agregar `ref.invalidate(wishlistControllerProvider)` en el `onTap`) **no cambiaba nada
+en pantalla**; el bug seguía en el APK publicado.
+
+### Por qué el intento anterior no servía
+`_ItemList` usa `.when(skipLoadingOnReload: true, …)` y `skipLoadingOnRefresh` **ya vale `true` por
+defecto** en riverpod. Con las dos banderas activas, cualquier estado de carga que arrastre un valor
+previo se salta el spinner y pinta los items viejos:
+
+- **Antes:** cambiar `currentListIdProvider` era un cambio de dependencia → `isReloading` → tapado
+  por `skipLoadingOnReload`.
+- **Con el `invalidate`:** `asReload: false` (el default) deja el estado como
+  `AsyncData(valor previo, loading)` → `isRefreshing` → tapado por `skipLoadingOnRefresh`.
+
+El `invalidate` solo cambiaba **cuál** de las dos banderas silenciaba el spinner. Y `asReload: true`
+tampoco alcanzaba: riverpod conserva el valor previo durante la carga en todos los casos
+(`AsyncValue.copyWithPrevious`); solo cambia cómo se etiqueta.
+
+La causa raíz era de diseño: un único `wishlistControllerProvider` global cuya identidad **no
+incluía el `listId`** (vivía aparte, en un provider mutable), así que los items de dos listas
+compartían el mismo estado.
+
+### Solución: el `listId` pasa a ser parte de la identidad del provider
+- `wishlistControllerProvider` → `AsyncNotifierProvider.family<…, String>`. `WishlistController`
+  recibe el `listId` por constructor y desaparecen todos los `ref.read(currentListIdProvider)` y sus
+  guardas de `null`. Abrir una lista monta un provider nuevo, sin valor previo, así que `when()`
+  entra por `loading()` **sin depender de ninguna bandera**.
+- Se mantiene `skipLoadingOnReload: true`: ahora solo aplica a recargas por filtro dentro de la
+  misma lista, que es para lo que se agregó.
+- **No es `autoDispose` a propósito:** `addByUrl` hace polling de hasta ~72 s y tiene que sobrevivir
+  a que el usuario vuelva a la pantalla de listas.
+- `wishlistFilterProvider` → family por `listId`. Antes el filtro era global y se arrastraba entre
+  listas (abrías otra y salía filtrada con el campo de búsqueda vacío). Además `_FilterBar` ahora
+  inicializa su `TextEditingController` con la búsqueda guardada de esa lista.
+- `itemByIdProvider` → family sobre `({String listId, String itemId})`.
+- `currentListIdProvider` se queda, pero ya no decide qué items se cargan: su único uso es que un
+  enlace compartido caiga en la lista que se estaba viendo.
+- `AddItemScreen` e `ItemDetailScreen` reciben `listId`; el router lo propaga desde el `:id` que ya
+  estaba en el path. Se quitó el `invalidate` del `onTap` de `_ListCard`.
+
+Efecto secundario bienvenido: volver a una lista ya visitada la muestra al instante, sin refetch.
+
+### Verificación
+- Nuevo `test/wishlist_list_switch_test.dart`: abrir otra lista rinde `spinner` y no los items de la
+  anterior (ni el "vacío"), volver a una lista ya cargada la muestra al instante, filtrar dentro de
+  una lista no parpadea, y los filtros no se cruzan entre listas.
+- `flutter analyze` → **No issues**; `flutter test` → **6 tests pasan**.
+
+---
+
 ## Pendiente (próximos milestones)
 - **Auth:** pantallas login/register, `auth_controller` (AsyncNotifier), persistencia del token,
   `redirect` de go_router + wiring del 401→login. (`/login` es form-urlencoded con `username`+`password`.)

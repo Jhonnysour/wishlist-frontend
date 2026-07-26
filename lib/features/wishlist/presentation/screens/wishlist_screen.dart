@@ -23,9 +23,10 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
   @override
   void initState() {
     super.initState();
-    // Red de seguridad (deep-link/back): asegura que el controller apunte a
-    // esta lista. Post-frame para no modificar el provider durante el build.
-    // En el flujo normal ya se setea en el onTap de la lista (sin parpadeo).
+    // Deja constancia de qué lista se está viendo, para que un enlace
+    // compartido caiga aquí. No influye en qué items se cargan: de eso se
+    // encarga el argumento de `wishlistControllerProvider`. Post-frame para no
+    // modificar el provider durante el build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(currentListIdProvider.notifier).set(widget.listId);
     });
@@ -44,7 +45,7 @@ class _WishlistScreenState extends ConsumerState<WishlistScreen> {
       ),
       body: Column(
         children: [
-          const _FilterBar(),
+          _FilterBar(listId: widget.listId),
           Expanded(child: _ItemList(listId: widget.listId)),
         ],
       ),
@@ -59,21 +60,24 @@ class _ItemList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemsAsync = ref.watch(wishlistControllerProvider);
-    final filter = ref.watch(wishlistFilterProvider);
+    final itemsAsync = ref.watch(wishlistControllerProvider(listId));
+    final filter = ref.watch(wishlistFilterProvider(listId));
     final filtering = filter.query.isNotEmpty || filter.purchased != null;
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(wishlistControllerProvider.notifier).refresh(),
+      onRefresh: () =>
+          ref.read(wishlistControllerProvider(listId).notifier).refresh(),
       child: itemsAsync.when(
         // No parpadear a spinner al cambiar filtros: mantener la lista previa.
+        // Solo aplica dentro de esta lista; abrirla por primera vez monta un
+        // provider nuevo, sin valor previo, así que el spinner sí se muestra.
         skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _ErrorState(
           message: error is ApiException
               ? error.message
               : 'No se pudo cargar la lista.',
-          onRetry: () => ref.invalidate(wishlistControllerProvider),
+          onRetry: () => ref.invalidate(wishlistControllerProvider(listId)),
         ),
         data: (items) => items.isEmpty
             ? _EmptyState(filtering: filtering)
@@ -95,15 +99,27 @@ class _ItemList extends ConsumerWidget {
 }
 
 class _FilterBar extends ConsumerStatefulWidget {
-  const _FilterBar();
+  const _FilterBar({required this.listId});
+
+  final String listId;
 
   @override
   ConsumerState<_FilterBar> createState() => _FilterBarState();
 }
 
 class _FilterBarState extends ConsumerState<_FilterBar> {
-  final _controller = TextEditingController();
+  late final TextEditingController _controller;
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // Los filtros son por lista y sobreviven a salir y volver: el campo tiene
+    // que mostrar la búsqueda guardada, no quedarse vacío con el filtro activo.
+    _controller = TextEditingController(
+      text: ref.read(wishlistFilterProvider(widget.listId)).query,
+    );
+  }
 
   @override
   void dispose() {
@@ -115,16 +131,18 @@ class _FilterBarState extends ConsumerState<_FilterBar> {
   void _onQueryChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      ref.read(wishlistFilterProvider.notifier).setQuery(value.trim());
+      ref
+          .read(wishlistFilterProvider(widget.listId).notifier)
+          .setQuery(value.trim());
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final purchased = ref.watch(
-      wishlistFilterProvider.select((f) => f.purchased),
+      wishlistFilterProvider(widget.listId).select((f) => f.purchased),
     );
-    final notifier = ref.read(wishlistFilterProvider.notifier);
+    final notifier = ref.read(wishlistFilterProvider(widget.listId).notifier);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),

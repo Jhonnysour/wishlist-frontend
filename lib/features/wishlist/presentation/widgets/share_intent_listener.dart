@@ -102,7 +102,9 @@ class _ShareIntentListenerState extends ConsumerState<ShareIntentListener> {
             : lists.first.id;
         ref.read(currentListIdProvider.notifier).set(targetId);
         ref.read(routerProvider).go('/lists/$targetId');
-        await ref.read(wishlistControllerProvider.notifier).addByUrl(url);
+        await ref
+            .read(wishlistControllerProvider(targetId).notifier)
+            .addByUrl(url);
       }
       messenger
         ?..hideCurrentSnackBar()

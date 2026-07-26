@@ -10,8 +10,10 @@ import '../../domain/item.dart';
 import '../providers/wishlist_providers.dart';
 
 class ItemDetailScreen extends ConsumerStatefulWidget {
-  const ItemDetailScreen({super.key, required this.id});
+  const ItemDetailScreen({super.key, required this.listId, required this.id});
 
+  /// La lista a la que pertenece el item.
+  final String listId;
   final String id;
 
   @override
@@ -21,11 +23,14 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   bool _working = false;
 
+  /// El controller de la lista que contiene este item.
+  WishlistController get _controller =>
+      ref.read(wishlistControllerProvider(widget.listId).notifier);
+
   Future<void> _togglePurchased() async {
     setState(() => _working = true);
     try {
-      await ref.read(wishlistControllerProvider.notifier)
-          .togglePurchased(widget.id);
+      await _controller.togglePurchased(widget.id);
     } on ApiException catch (e) {
       _snack(e.message);
     } catch (_) {
@@ -57,7 +62,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
 
     setState(() => _working = true);
     try {
-      await ref.read(wishlistControllerProvider.notifier).remove(widget.id);
+      await _controller.remove(widget.id);
       if (mounted) context.pop(); // vuelve a la lista
     } on ApiException catch (e) {
       _snack(e.message);
@@ -105,9 +110,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
 
     setState(() => _working = true);
     try {
-      await ref
-          .read(wishlistControllerProvider.notifier)
-          .updateTitle(widget.id, trimmed);
+      await _controller.updateTitle(widget.id, trimmed);
     } on ApiException catch (e) {
       _snack(e.message);
     } catch (_) {
@@ -124,9 +127,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     if (result == null) return; // cancelado
     setState(() => _working = true);
     try {
-      await ref
-          .read(wishlistControllerProvider.notifier)
-          .updateImages(widget.id, result);
+      await _controller.updateImages(widget.id, result);
     } on ApiException catch (e) {
       _snack(e.message);
     } catch (_) {
@@ -145,7 +146,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final item = ref.watch(itemByIdProvider(widget.id));
+    final item = ref.watch(
+      itemByIdProvider((listId: widget.listId, itemId: widget.id)),
+    );
 
     if (item == null) {
       return Scaffold(
