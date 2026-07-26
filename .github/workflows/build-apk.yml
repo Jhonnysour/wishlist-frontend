@@ -1,6 +1,10 @@
 name: Build APK
 
-# Compila el APK de release y lo publica en el Release "latest" del repo.
+# Compila el APK de release y publica un Release por build, etiquetado
+# v<version>+<run_number> sobre el commit construido. Para descargar siempre el
+# ultimo, usar la URL fija:
+#   https://github.com/Jhonnysour/wishlist-frontend/releases/latest/download/app-release.apk
+#
 # La URL del backend y la publishable key de Supabase se inyectan en tiempo de
 # build desde las *Variables* de Actions (Settings -> Secrets and variables ->
 # Actions -> Variables): API_BASE_URL y SUPABASE_PUBLISHABLE_KEY.
@@ -56,15 +60,39 @@ jobs:
           } > android/key.properties
           echo "Firma de release configurada."
 
+      # El nombre de version sale de pubspec.yaml (sigue siendo correcto al subir
+      # a 1.1.0 sin tocar este archivo) y el build number del run de Actions, que
+      # es monotonico y sirve de versionCode.
+      - name: Derivar la version del build
+        id: version
+        run: |
+          NAME=$(grep '^version:' pubspec.yaml | sed 's/^version: *//' | cut -d'+' -f1)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NAME+${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Build release APK
         run: >
           flutter build apk --release
+          --build-name=${{ steps.version.outputs.name }}
+          --build-number=${{ github.run_number }}
           --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Publish APK to the "latest" release
+      # Un release inmutable por build: el tag se crea nuevo en cada run, asi que
+      # GitHub lo ancla al commit construido y tanto el commit mostrado como el
+      # "Source code" corresponden al APK. Con un tag fijo reutilizado, en cambio,
+      # el tag no se mueve y el release queda clavado en un commit viejo.
+      # `make_latest` mantiene viva la URL de descarga fija:
+      #   /releases/latest/download/app-release.apk
+      - name: Publicar el APK como release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest APK
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          make_latest: true
+          body: |
+            Commit: ${{ github.sha }}
+            versionCode: ${{ github.run_number }}
+
+            ${{ github.event.head_commit.message }}
           files: build/app/outputs/flutter-apk/app-release.apk

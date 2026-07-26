@@ -302,6 +302,42 @@ Efecto secundario bienvenido: volver a una lista ya visitada la muestra al insta
 
 ---
 
+## 2026-07-26 — Releases trazables: un APK ↔ un commit
+
+La página del Release mostraba el commit `9676238` (20 jul) mientras el APK servido era del 25 jul
+18:08, construido desde `d399e68` (25 jul 17:52). El APK era el correcto; la metadata mentía.
+
+Causa: `softprops/action-gh-release` solo crea el tag si no existe. Como `latest` ya apuntaba a
+`9676238`, cada run subía un APK nuevo al mismo release **sin mover el tag**. Consecuencias reales,
+más allá de lo cosmético:
+
+- El "Source code" del release se genera desde el tag, o sea 6 commits atrás: no correspondía al APK.
+- No había forma de mapear un APK a un commit (justo la duda que originó todo esto).
+- Todos los APK salían como versionName `1.0.0` / versionCode `1`: el workflow nunca pasaba
+  `--build-name`/`--build-number`, así que era imposible saber qué build había instalado.
+- Sin historial ni rollback: un único asset que se sobrescribía.
+
+### Cambios (`.github/workflows/build-apk.yml`)
+- Paso nuevo que deriva la versión: el nombre sale de `pubspec.yaml` (sigue correcto al subir a
+  1.1.0 sin tocar el workflow) y el build number de `github.run_number`, que es monotónico.
+- `flutter build apk` ahora recibe `--build-name` y `--build-number`, así que el versionCode sube en
+  cada build y Android distingue las instalaciones.
+- Un release inmutable por build, con tag `v<version>+<run_number>`. Como el tag se crea nuevo en
+  cada run, GitHub lo ancla al commit construido: el commit mostrado y el "Source code" son
+  correctos **por construcción**, sin depender de mover tags. El cuerpo incluye el SHA y el
+  versionCode. Quedan los APK anteriores para rollback.
+- `make_latest: true` mantiene viva la URL de descarga fija, que es la que conviene usar:
+  `https://github.com/Jhonnysour/wishlist-frontend/releases/latest/download/app-release.apk`
+
+El release viejo `Latest APK` y su tag `latest` quedan huérfanos; GitHub le mueve la insignia
+"Latest" al nuevo automáticamente, así que no estorban.
+
+### Verificación
+- El snippet que deriva la versión, probado contra el `pubspec.yaml` actual → `name=1.0.0`,
+  `tag=v1.0.0+<run>`. La validación real del YAML es el primer run en Actions.
+
+---
+
 ## Pendiente (próximos milestones)
 - **Auth:** pantallas login/register, `auth_controller` (AsyncNotifier), persistencia del token,
   `redirect` de go_router + wiring del 401→login. (`/login` es form-urlencoded con `username`+`password`.)
