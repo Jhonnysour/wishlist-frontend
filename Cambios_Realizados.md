@@ -5,18 +5,21 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
-## 2026-07-26 — Capa 0: esperar el precio de AliExpress antes de capturar
+## 2026-07-27 — Revertido: la espera del precio de AliExpress en el WebView
 
-AliExpress inyecta el precio por un XHR que llega **después** del margen fijo de 3s tras
-`onLoadStop`, por lo que el WebView capturaba el HTML sin precio (y el item quedaba sin precio).
+Se revierte `_waitForAliPrice` (introducido el 26-07): sondeaba el DOM esperando
+`[class*="price-default--current"]`, pero ese es el selector del sitio **desktop** y el WebView usa
+un UA **móvil** (AliExpress sirve otro DOM), así que la espera no encontraba nada y solo añadía hasta
+12 s de latencia por cada alta de AliExpress.
 
-- `lib/features/webview_capture/data/webview_capture_service.dart`: en `onLoadStop`, si el host es
-  de AliExpress, `_waitForAliPrice` sondea el DOM (cada 500 ms, hasta 12 s) esperando el elemento
-  `[class*="price-default--current"]` con un número; captura en cuanto aparece, o al agotar el tope
-  (best effort). El resto de sitios mantiene el margen fijo de 3s, sin pagar la espera extra.
-- Complementa el fix de **imágenes** de AliExpress en el backend (galería vía `imagePathList`).
-- **Verificado:** `flutter analyze` del feature sin issues. En dispositivo: re-agregar el producto de
-  AliExpress debería traer precio + galería correctos.
+- `lib/features/webview_capture/data/webview_capture_service.dart`: vuelve al **margen fijo de 3s**
+  tras `onLoadStop` (se quitan `_waitForAliPrice`, `_aliPriceMaxWait`, `_pollInterval` y la rama por
+  host). Queda idéntico al estado previo al 26-07.
+- **Por qué ya no hace falta esperar:** el precio de AliExpress ahora lo resuelve el **backend** desde
+  el parámetro `pdp_npi` de la URL compartida, y las imágenes (`imagePathList`) ya están en el HTML
+  inicial. Nada que esperar en el WebView.
+- **Verificado:** `flutter analyze` del feature sin issues; el archivo vuelve a coincidir con el
+  commit previo a la espera.
 
 ---
 
