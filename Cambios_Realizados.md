@@ -5,6 +5,21 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-07-26 — Capa 0: esperar el precio de AliExpress antes de capturar
+
+AliExpress inyecta el precio por un XHR que llega **después** del margen fijo de 3s tras
+`onLoadStop`, por lo que el WebView capturaba el HTML sin precio (y el item quedaba sin precio).
+
+- `lib/features/webview_capture/data/webview_capture_service.dart`: en `onLoadStop`, si el host es
+  de AliExpress, `_waitForAliPrice` sondea el DOM (cada 500 ms, hasta 12 s) esperando el elemento
+  `[class*="price-default--current"]` con un número; captura en cuanto aparece, o al agotar el tope
+  (best effort). El resto de sitios mantiene el margen fijo de 3s, sin pagar la espera extra.
+- Complementa el fix de **imágenes** de AliExpress en el backend (galería vía `imagePathList`).
+- **Verificado:** `flutter analyze` del feature sin issues. En dispositivo: re-agregar el producto de
+  AliExpress debería traer precio + galería correctos.
+
+---
+
 ## 2026-07-17 — Scaffold inicial (Riverpod, feature-first)
 
 Creación del proyecto desde cero (repo vacío) con la infraestructura base `core/` y un modelo de
