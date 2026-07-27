@@ -103,6 +103,20 @@ class WishlistRepository {
     }
   }
 
+  /// `PATCH /items/{id}` — fija el precio a mano, para las tiendas cuyo precio
+  /// ningún scraper alcanza. `null` lo borra.
+  Future<Item> updatePrice(String id, double? price) async {
+    try {
+      final res = await _dio.patch<Map<String, dynamic>>(
+        '/items/$id',
+        data: {'price': price},
+      );
+      return Item.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// `DELETE /items/{id}` — elimina el item (204).
   Future<void> deleteItem(String id) async {
     try {

@@ -120,6 +120,64 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     }
   }
 
+  Future<void> _editPrice(double? currentPrice) async {
+    final controller = TextEditingController(
+      text: currentPrice == null ? '' : currentPrice.toStringAsFixed(2),
+    );
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Precio'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            hintText: '0.00',
+            prefixText: '\$ ',
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return; // cancelado
+
+    // Vacío = quitar el precio. Se acepta coma decimal: el teclado numérico de
+    // varios teclados en español la ofrece antes que el punto.
+    final text = result.trim().replaceAll(',', '.');
+    double? price;
+    if (text.isNotEmpty) {
+      price = double.tryParse(text);
+      if (price == null || price < 0) {
+        _snack('Escribe un precio válido, por ejemplo 600.60');
+        return;
+      }
+    }
+    if (price == currentPrice) return; // sin cambios
+
+    setState(() => _working = true);
+    try {
+      await _controller.updatePrice(widget.id, price);
+    } on ApiException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('No se pudo actualizar el precio.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   Future<void> _editImages(List<String> current) async {
     final result = await Navigator.of(context).push<List<String>>(
       MaterialPageRoute(builder: (_) => _ImageEditorScreen(images: current)),
@@ -181,16 +239,30 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
               onPressed: _working ? null : _togglePurchased,
             )
           : null,
-      body: _Body(item: item, onEditTitle: () => _editTitle(item.title)),
+      body: _Body(
+        item: item,
+        onEditTitle: () => _editTitle(item.title),
+        onEditPrice: () => _editPrice(item.price),
+        diagnostic: ref.watch(captureDiagnosticProvider)[item.id],
+      ),
     );
   }
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.item, required this.onEditTitle});
+  const _Body({
+    required this.item,
+    required this.onEditTitle,
+    required this.onEditPrice,
+    this.diagnostic,
+  });
 
   final Item item;
   final VoidCallback onEditTitle;
+  final VoidCallback onEditPrice;
+
+  /// Por qué falló la captura por WebView, cuando la hubo.
+  final String? diagnostic;
 
   @override
   Widget build(BuildContext context) {
@@ -205,11 +277,20 @@ class _Body extends StatelessWidget {
       );
     }
     if (item.status == ItemStatus.failed) {
+      // Algunas tiendas (MercadoLibre) bloquean a los scrapers de forma
+      // definitiva. En vez de dejar una tarjeta muerta, el usuario le pone
+      // nombre y precio y el item queda utilizable.
       return _Centered(
         icon: Icons.error_outline,
         iconColor: scheme.error,
         title: 'No se pudo extraer el producto',
         subtitle: item.originalUrl,
+        detail: diagnostic,
+        action: FilledButton.tonalIcon(
+          onPressed: onEditTitle,
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Completar a mano'),
+        ),
       );
     }
 
@@ -248,6 +329,21 @@ class _Body extends StatelessWidget {
                         color: scheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
+                    )
+                  else
+                    // Sin precio no hay nada que editar con el lápiz: se ofrece
+                    // ponerlo, que es lo que hace falta cuando la tienda no lo
+                    // suelta (MercadoLibre) o el scraping no lo alcanzó.
+                    TextButton.icon(
+                      onPressed: onEditPrice,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Añadir precio'),
+                    ),
+                  if (item.price != null)
+                    IconButton(
+                      tooltip: 'Editar precio',
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: onEditPrice,
                     ),
                   const Spacer(),
                   if (item.purchased) const _PurchasedChip(),
@@ -629,12 +725,18 @@ class _Centered extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.iconColor,
+    this.detail,
+    this.action,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final Color? iconColor;
+
+  /// Detalle técnico del fallo (por qué no se pudo capturar la página).
+  final String? detail;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -656,6 +758,20 @@ class _Centered extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            if (detail != null) ...[
+              const SizedBox(height: 16),
+              Text(detail!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.7,
+                    ),
+                  )),
+            ],
+            if (action != null) ...[
+              const SizedBox(height: 24),
+              action!,
+            ],
           ],
         ),
       ),

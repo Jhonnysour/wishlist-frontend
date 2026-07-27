@@ -109,21 +109,32 @@ class WishlistController extends AsyncNotifier<List<Item>> {
     // recuperarlo. Como este `_replace` corre en el mismo turno que el que
     // puso FAILED, el mensaje de error ni llega a pintarse.
     _replace(item.copyWith(status: ItemStatus.pending));
+    final diagnostics = ref.read(captureDiagnosticProvider.notifier);
     try {
-      final html =
+      final capture =
           await ref.read(webViewCaptureServiceProvider).capture(item.originalUrl);
       // El item pudo borrarse mientras cargaba el WebView.
       final list = state.value;
       if (list == null || !list.any((it) => it.id == item.id)) return;
-      if (html == null || html.isEmpty) {
+      if (!capture.ok) {
+        diagnostics.set(item.id, capture.diagnostic, capture.finalUrl);
         _replace(item); // no se pudo capturar -> FAILED real
         return;
       }
       final updated = await ref
           .read(webViewCaptureRepositoryProvider)
-          .retryFromHtml(item.id, html);
+          .retryFromHtml(item.id, capture.html!);
+      // Capturamos una página pero el backend no sacó nada de ella: saber su
+      // tamaño y de dónde salió distingue "no llegamos" de "llegamos al muro".
+      if (updated.status == ItemStatus.failed) {
+        final kb = (capture.html!.length / 1024).round();
+        diagnostics.set(item.id, 'capturado $kb KB, sin datos', capture.finalUrl);
+      } else {
+        diagnostics.clear(item.id);
+      }
       _replace(updated); // COMPLETED, o FAILED si tampoco alcanzó
-    } on ApiException {
+    } on ApiException catch (e) {
+      diagnostics.set(item.id, 'el servidor rechazó el HTML: ${e.message}', null);
       _replace(item); // restaura FAILED
     } finally {
       _capturingIds.remove(item.id);
@@ -155,6 +166,13 @@ class WishlistController extends AsyncNotifier<List<Item>> {
   Future<void> updateTitle(String id, String title) async {
     final updated =
         await ref.read(wishlistRepositoryProvider).updateTitle(id, title);
+    _replace(updated);
+  }
+
+  /// Fija (o borra, con `null`) el precio a mano. Lanza [ApiException] si falla.
+  Future<void> updatePrice(String id, double? price) async {
+    final updated =
+        await ref.read(wishlistRepositoryProvider).updatePrice(id, price);
     _replace(updated);
   }
 
@@ -204,6 +222,34 @@ class CurrentListId extends Notifier<String?> {
 
 final currentListIdProvider =
     NotifierProvider<CurrentListId, String?>(CurrentListId.new);
+
+/// Por qué falló la captura por WebView de cada item, para poder mostrarlo.
+///
+/// Cuando la Capa 0 falla en el móvil no queda rastro alguno: el item sale como
+/// "no se pudo extraer" y desde el PC es imposible saber si el WebView no cargó,
+/// si lo redirigieron a la app de la tienda o si la página vino vacía —
+/// comprobar cada hipótesis costaba compilar un APK. Vive solo en memoria: es
+/// información de depuración de este intento, no algo que guardar.
+class CaptureDiagnostics extends Notifier<Map<String, String>> {
+  @override
+  Map<String, String> build() => const {};
+
+  void set(String itemId, String? reason, String? finalUrl) {
+    if (reason == null || reason.isEmpty) return;
+    final where = (finalUrl == null || finalUrl.isEmpty) ? '' : '\n$finalUrl';
+    state = {...state, itemId: '$reason$where'};
+  }
+
+  void clear(String itemId) {
+    if (!state.containsKey(itemId)) return;
+    state = {...state}..remove(itemId);
+  }
+}
+
+final captureDiagnosticProvider =
+    NotifierProvider<CaptureDiagnostics, Map<String, String>>(
+  CaptureDiagnostics.new,
+);
 
 /// Un item de una lista por id (reactivo: se actualiza con el polling y las
 /// acciones). Es `null` si el item ya no está en la lista (p. ej. tras borrar).

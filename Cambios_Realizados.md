@@ -5,6 +5,43 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-07-27 — Diagnóstico de la captura, bloqueo de deeplinks, precio manual y un solo release
+
+MercadoLibre seguía fallando en el móvil y **estábamos ciegos**: cuando la Capa 0 falla no queda
+rastro alguno, así que cada hipótesis costaba compilar un APK. Cuatro cambios.
+
+**1. La captura explica su propio fracaso.** `webview_capture_service.dart`: `capture()` devuelve
+ahora un `CaptureResult { html, diagnostic, finalUrl }`. Se registra el motivo en cada camino
+(error de marco principal con su código, timeout sin DOM, DOM vacío, esquema bloqueado) más la URL
+donde acabó el WebView — que distingue "nos sirvieron el muro" de "nos mandaron al login".
+`captureDiagnosticProvider` (solo en memoria) lo guarda por item desde `_captureFallback`, cubriendo
+los dos casos ciegos: no hubo HTML, o hubo HTML pero el backend no sacó nada de él (se anota su
+tamaño). La pantalla de detalle lo muestra bajo el error.
+
+**2. Se bloquean los redirects a apps nativas.** Las tiendas empujan al visitante móvil hacia su app
+(`meli://`, `intent://`). El WebView no sabe abrir esos esquemas: la navegación moría con error de
+marco principal y perdíamos la página web que ya estaba cargada. Con
+`useShouldOverrideUrlLoading` + `shouldOverrideUrlLoading` se cancela todo lo que no sea
+`http`/`https` y la web se queda en pie para poder leerla. Además, ante un error de marco principal
+ahora se intenta leer el DOM antes de rendirse.
+
+**3. Precio manual y rescate de items fallidos.** Un item FAILED era una tarjeta muerta. Ahora:
+- `wishlist_repository.dart` / `wishlist_providers.dart`: `updatePrice(id, price)` (espejo de
+  `updateTitle`).
+- `item_detail_screen.dart`: diálogo `_editPrice` (acepta coma o punto decimal; vacío = quitar el
+  precio), botón de editar junto al precio y **"Añadir precio"** cuando no hay. En el estado FAILED,
+  botón **"Completar a mano"**: al ponerle título el backend lo pasa a COMPLETED y el item queda
+  utilizable.
+
+**4. Un solo release en GitHub.** `.github/workflows/build-apk.yml`: se borra el release anterior
+(`gh release delete latest --cleanup-tag`) y se publica con el tag fijo `latest`. Antes había uno por
+build y **desordenados**: los tags `v<version>+<run>` solo difieren en el `+N`, que semver ignora al
+comparar, así que empataban y el más nuevo no quedaba arriba. La URL de descarga fija no cambia.
+
+**Verificado:** `flutter analyze` sin issues y `flutter test` verde.
+
+---
+
 ## 2026-07-27 — Capa 0: la captura se abortaba por CUALQUIER recurso fallido
 
 En el móvil, MercadoLibre quedaba en "No se pudo extraer el producto" **sin título ni foto** — pero

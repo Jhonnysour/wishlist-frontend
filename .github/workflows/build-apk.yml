@@ -1,8 +1,8 @@
 name: Build APK
 
-# Compila el APK de release y publica un Release por build, etiquetado
-# v<version>+<run_number> sobre el commit construido. Para descargar siempre el
-# ultimo, usar la URL fija:
+# Compila el APK de release y mantiene UN solo Release, con el tag fijo
+# `latest`, siempre sobre el commit recien construido. Para descargar, la URL
+# fija de siempre:
 #   https://github.com/Jhonnysour/wishlist-frontend/releases/latest/download/app-release.apk
 #
 # La URL del backend y la publishable key de Supabase se inyectan en tiempo de
@@ -78,16 +78,20 @@ jobs:
           --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
-      # Un release inmutable por build: el tag se crea nuevo en cada run, asi que
-      # GitHub lo ancla al commit construido y tanto el commit mostrado como el
-      # "Source code" corresponden al APK. Con un tag fijo reutilizado, en cambio,
-      # el tag no se mueve y el release queda clavado en un commit viejo.
-      # `make_latest` mantiene viva la URL de descarga fija:
-      #   /releases/latest/download/app-release.apk
+      # Un release por build dejaba la pagina llena y, peor, desordenada: los
+      # tags v<version>+<run> solo se diferencian en el `+N`, que semver ignora
+      # al comparar, asi que todos empataban y el mas nuevo no quedaba arriba.
+      # Se borra el anterior (con su tag) y se publica de cero, de modo que
+      # siempre haya UNO apuntando al commit que produjo este APK.
+      - name: Borrar el release anterior
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete latest --cleanup-tag --yes || true
+
       - name: Publicar el APK como release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
+          tag_name: latest
           name: ${{ steps.version.outputs.tag }}
           make_latest: true
           body: |
