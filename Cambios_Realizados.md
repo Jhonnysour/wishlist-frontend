@@ -5,6 +5,28 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-07-27 — Capa 0: la captura se abortaba por CUALQUIER recurso fallido
+
+En el móvil, MercadoLibre quedaba en "No se pudo extraer el producto" **sin título ni foto** — pero
+hasta el muro anti-bot trae `og:title`/`og:image`, así que el WebView no estaba devolviendo *nada*.
+
+Causa: `onReceivedError` de Android se dispara para **cualquier** recurso que falle (anuncio,
+tracker, imagen, iframe), no solo para la página — así lo documenta `WebViewClient`. El callback
+hacía `finish(null)` sin distinguir, de modo que el primer tracker caído **abortaba la captura
+completa** de una página que se había renderizado bien. ML, cargado de anuncios y trackers, fallaba
+siempre; y esto volvía inestables también las capturas de otros sitios.
+
+- `webview_capture_service.dart`:
+  - `onReceivedError` solo aborta si `request.isForMainFrame` (no hay página que leer). Los fallos de
+    subrecursos se ignoran.
+  - Al vencer el timeout ya no devuelve `null`: lee el DOM que haya (`headless.webViewController`).
+    Las páginas que siguen sondeando en segundo plano nunca llegan a `onLoadStop`, aunque su markup
+    lleva rato completo.
+  - Helper `readDom` compartido por los tres caminos (carga, timeout).
+- **Verificado:** `flutter analyze` sin issues.
+
+---
+
 ## 2026-07-27 — Capa 0 también se dispara cuando falta el precio (MercadoLibre)
 
 La captura por WebView solo corría si el item quedaba en `FAILED`. MercadoLibre responde a los

@@ -37,24 +37,43 @@ class WebViewCaptureService {
       await headless?.dispose();
     }
 
+    Future<String?> readDom(InAppWebViewController? controller) async {
+      if (controller == null) return null;
+      try {
+        final html = await controller.evaluateJavascript(
+          source: 'document.documentElement.outerHTML',
+        );
+        return html is String ? html : html?.toString();
+      } catch (_) {
+        return null;
+      }
+    }
+
     headless = HeadlessInAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(url)),
       initialSettings: InAppWebViewSettings(userAgent: _userAgent),
       onLoadStop: (controller, uri) async {
         await Future<void>.delayed(_settle);
-        try {
-          final html = await controller.evaluateJavascript(
-            source: 'document.documentElement.outerHTML',
-          );
-          await finish(html is String ? html : html?.toString());
-        } catch (_) {
-          await finish(null);
-        }
+        await finish(await readDom(controller));
       },
-      onReceivedError: (controller, request, error) => finish(null),
+      // Android's WebViewClient calls onReceivedError for *any* failed
+      // resource — an ad, a tracker, an image — not just the page itself.
+      // Aborting on all of them discarded pages that had rendered perfectly
+      // well: MercadoLibre never got captured at all because something in its
+      // ad/tracking soup always fails. Only a main-frame error means there is
+      // no page to read.
+      onReceivedError: (controller, request, error) {
+        if (request.isForMainFrame ?? false) finish(null);
+      },
     );
 
-    timeoutTimer = Timer(_timeout, () => finish(null));
+    // On timeout, read whatever is in the DOM instead of giving up: pages that
+    // keep polling in the background never reach onLoadStop, yet their markup
+    // has been complete for a while.
+    timeoutTimer = Timer(
+      _timeout,
+      () async => finish(await readDom(headless?.webViewController)),
+    );
     await headless.run();
     return completer.future;
   }
