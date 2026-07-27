@@ -82,7 +82,13 @@ class WishlistController extends AsyncNotifier<List<Item>> {
         if (fresh.status != ItemStatus.pending) {
           // Capa 0: si el scraping de servidor no alcanzó, reintentar con el
           // HTML que ve un navegador real (Amazon y similares).
-          if (fresh.status == ItemStatus.failed) {
+          //
+          // "No alcanzó" incluye el COMPLETED **sin precio**: MercadoLibre
+          // responde a los scrapers con su muro anti-bot, que igual trae
+          // og:title y og:image — suficiente para que el backend lo dé por
+          // bueno. Mirando solo el status, el navegador del móvil (lo único
+          // con opción real de pasar ese muro) nunca llegaba a intentarlo.
+          if (fresh.status == ItemStatus.failed || fresh.price == null) {
             unawaited(_captureFallback(fresh));
           }
           return;

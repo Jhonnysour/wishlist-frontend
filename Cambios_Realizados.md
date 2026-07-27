@@ -5,6 +5,25 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-07-27 — Capa 0 también se dispara cuando falta el precio (MercadoLibre)
+
+La captura por WebView solo corría si el item quedaba en `FAILED`. MercadoLibre responde a los
+scrapers con su muro anti-bot, que **igual trae `og:title` y `og:image`** → el backend lo daba por
+`ok` (COMPLETED) → mirando solo el status, el navegador del móvil **nunca intentaba** la página. Y el
+WebView es justo lo único con opción real de pasar ese muro (navegador y dispositivo reales, IP
+residencial; Playwright es detectado incluso desde IP residencial).
+
+- `lib/features/wishlist/presentation/providers/wishlist_providers.dart` (`_poll`): la Capa 0 ahora
+  se dispara con `status == failed` **o** `price == null`. Sigue habiendo un solo intento por item
+  (`_capturingIds`).
+- Complemento en backend: `retry-from-html` pasa a rellenar huecos sin degradar, para que un
+  reintento que choque con el mismo muro no borre el título/imágenes ya guardados.
+- **Verificado:** `flutter analyze` del feature sin issues.
+- **Pendiente de comprobar en dispositivo:** si el WebView del teléfono pasa el muro de ML. Si pasa,
+  llega el precio; si no, ML quedará con foto + nombre sin precio.
+
+---
+
 ## 2026-07-27 — Revertido: la espera del precio de AliExpress en el WebView
 
 Se revierte `_waitForAliPrice` (introducido el 26-07): sondeaba el DOM esperando
