@@ -55,6 +55,9 @@ dependencies:
   # Auth: registro/login y manejo de sesión (con refresh automático) contra
   # Supabase Auth. El backend solo valida el JWT que emite Supabase.
   supabase_flutter: ^2.8.0
+  # Abre la búsqueda del producto en el navegador del móvil cuando la tienda no
+  # se deja leer (MercadoLibre): desde ahí el usuario comparte a la app.
+  url_launcher: ^6.3.1
 
 # path_provider_foundation >=2.5.0 migrated its macOS/iOS backend to FFI via the
 # `objective_c` package, whose native build hook makes `build_runner` fail with

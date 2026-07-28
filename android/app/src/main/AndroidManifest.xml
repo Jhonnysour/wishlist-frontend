@@ -50,5 +50,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Desde Android 11 una app no ve qué otras apps existen salvo que lo
+             declare. Sin esto, url_launcher no encuentra ningún navegador y
+             abrir la búsqueda del producto falla en silencio. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

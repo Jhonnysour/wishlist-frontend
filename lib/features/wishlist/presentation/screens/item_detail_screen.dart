@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/api/api_exception.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -117,6 +118,25 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       _snack('No se pudo actualizar el título.');
     } finally {
       if (mounted) setState(() => _working = false);
+    }
+  }
+
+  /// Abre la búsqueda del producto en Amazon, en el navegador del móvil.
+  ///
+  /// Cuando una tienda no se deja leer, el nombre del producto sí llega (el
+  /// backend lo saca del propio enlace). Desde el navegador el usuario comparte
+  /// el resultado a la app por el camino de siempre, y ese sí entra con foto y
+  /// precio. Se abre fuera y no en un WebView porque compartir desde el
+  /// navegador es justo el flujo que el usuario ya conoce.
+  Future<void> _searchOnAmazon(String? productName) async {
+    final query = (productName ?? '').trim();
+    if (query.isEmpty) return;
+    final url = Uri.https('www.amazon.com', '/s', {'k': query});
+    try {
+      final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!opened) _snack('No se pudo abrir el navegador.');
+    } catch (_) {
+      _snack('No se pudo abrir el navegador.');
     }
   }
 
@@ -243,10 +263,30 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
         item: item,
         onEditTitle: () => _editTitle(item.title),
         onEditPrice: () => _editPrice(item.price),
+        onSearchElsewhere: () => _searchOnAmazon(item.title),
         diagnostic: ref.watch(captureDiagnosticProvider)[item.id],
       ),
     );
   }
+}
+
+/// Tiendas que bloquean deliberadamente a las apps que abren sus páginas.
+///
+/// MercadoLibre redirige a `/gz/account-verification` a cualquier navegador sin
+/// cookies ni historial —comprobado desde el móvil—, así que no hay scraping
+/// que valga: no es un fallo que podamos arreglar, y merece decirse claro en vez
+/// de mostrar un error genérico que invita a reintentar.
+const _blockingStores = {
+  'mercadolibre': 'Mercado Libre',
+  'mercadolivre': 'Mercado Livre',
+};
+
+String? _blockingStoreName(String url) {
+  final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+  for (final entry in _blockingStores.entries) {
+    if (host.contains(entry.key)) return entry.value;
+  }
+  return null;
 }
 
 class _Body extends StatelessWidget {
@@ -254,12 +294,14 @@ class _Body extends StatelessWidget {
     required this.item,
     required this.onEditTitle,
     required this.onEditPrice,
+    required this.onSearchElsewhere,
     this.diagnostic,
   });
 
   final Item item;
   final VoidCallback onEditTitle;
   final VoidCallback onEditPrice;
+  final VoidCallback onSearchElsewhere;
 
   /// Por qué falló la captura por WebView, cuando la hubo.
   final String? diagnostic;
@@ -277,20 +319,53 @@ class _Body extends StatelessWidget {
       );
     }
     if (item.status == ItemStatus.failed) {
-      // Algunas tiendas (MercadoLibre) bloquean a los scrapers de forma
-      // definitiva. En vez de dejar una tarjeta muerta, el usuario le pone
-      // nombre y precio y el item queda utilizable.
+      final store = _blockingStoreName(item.originalUrl);
+      // El nombre sale del propio enlace cuando la página no dijo nada, así que
+      // aunque la tienda nos cierre la puerta el producto es identificable.
+      final name = item.title?.trim() ?? '';
+      final actions = Column(
+        children: [
+          FilledButton.tonalIcon(
+            onPressed: onEditTitle,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Completar a mano'),
+          ),
+          if (name.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onSearchElsewhere,
+              icon: const Icon(Icons.search),
+              label: const Text('Buscarlo en Amazon'),
+            ),
+          ],
+        ],
+      );
+
+      if (store != null) {
+        // No es un fallo nuestro: la tienda bloquea a propósito a cualquier app
+        // que abra sus páginas. Decirlo así evita que el usuario reintente en
+        // vano, y el icono neutro evita alarmarlo por algo que no está roto.
+        return _Centered(
+          icon: Icons.storefront_outlined,
+          title: '$store no permite leer sus productos',
+          subtitle: name.isEmpty
+              ? 'Bloquea a las apps que abren sus páginas, así que no podemos '
+                  'traer la foto ni el precio.'
+              : '$name\n\nBloquea a las apps que abren sus páginas, así que no '
+                  'podemos traer la foto ni el precio.',
+          action: actions,
+        );
+      }
+
       return _Centered(
         icon: Icons.error_outline,
         iconColor: scheme.error,
         title: 'No se pudo extraer el producto',
         subtitle: item.originalUrl,
+        // Solo para tiendas que no sabemos que bloqueen: si algo nuevo falla,
+        // este detalle dice por qué sin tener que compilar una versión aparte.
         detail: diagnostic,
-        action: FilledButton.tonalIcon(
-          onPressed: onEditTitle,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Completar a mano'),
-        ),
+        action: actions,
       );
     }
 

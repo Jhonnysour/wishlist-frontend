@@ -5,6 +5,34 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-07-27 — MercadoLibre: decirlo claro y ofrecer buscarlo en Amazon
+
+El diagnóstico que se añadió antes dio la respuesta definitiva: la captura del móvil **sí** funciona,
+pero ML redirige el WebView a `/gz/account-verification` (22 KB, sin producto). Un navegador nuevo,
+sin cookies ni historial, es tráfico sospechoso para ML. **No hay scraping que lo arregle.** Así que
+en vez de seguir intentándolo, la app lo dice con claridad y ofrece una salida.
+
+- `item_detail_screen.dart`:
+  - **Mensaje honesto según el caso.** Si el dominio es de una tienda que bloquea a propósito
+    (`_blockingStores`: mercadolibre / mercadolivre), la tarjeta deja de ser un error rojo genérico y
+    pasa a un icono neutro de tienda con *"Mercado Libre no permite leer sus productos"* + el nombre
+    del producto + la explicación de que bloquea a las apps que abren sus páginas. No es un fallo
+    nuestro y no invita a reintentar en vano. Para el resto de tiendas se mantiene el error genérico
+    **con el detalle técnico**, que sigue siendo útil si algo nuevo falla.
+  - **"Buscarlo en Amazon"**: abre la búsqueda del producto en el navegador del móvil, usando el
+    nombre que el backend deriva del propio enlace. Desde ahí el usuario comparte el resultado a la
+    app por el camino de siempre, y ese sí entra con foto y precio.
+  - Se abre en el navegador externo (no en un WebView interno) porque compartir desde el navegador
+    es exactamente el flujo que el usuario ya conoce y que ya funciona.
+- **Descartado a propósito:** buscar en Amazon desde el backend y devolver resultados — Amazon
+  bloquea a nuestro servidor (es la razón de existir de la Capa 0), así que sería frágil.
+- `pubspec.yaml`: `url_launcher: ^6.3.1`.
+- `AndroidManifest.xml`: `<queries>` con `VIEW`/`https` — desde Android 11, sin declararlo,
+  url_launcher no encuentra ningún navegador y la búsqueda fallaría en silencio.
+- **Verificado:** `flutter analyze` sin issues + `flutter test` verde.
+
+---
+
 ## 2026-07-27 — Diagnóstico de la captura, bloqueo de deeplinks, precio manual y un solo release
 
 MercadoLibre seguía fallando en el móvil y **estábamos ciegos**: cuando la Capa 0 falla no queda
