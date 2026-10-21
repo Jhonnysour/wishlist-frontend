@@ -5,6 +5,15 @@ API `wishlist-extractor-api`). Cada entrada resume qué se hizo y por qué.
 
 ---
 
+## 2026-10-21 — README del proyecto
+
+- `README.md`: se reemplazó la plantilla por defecto de Flutter por la documentación real de la app:
+  qué se logró, stack, arquitectura feature-first, rutas, flujo de un producto (alta → polling →
+  Capa 0 → rescate manual), puesta en marcha con `--dart-define`, CI/CD del APK, pins de
+  compatibilidad, limitaciones e historia del proyecto.
+
+---
+
 ## 2026-07-27 — MercadoLibre: decirlo claro y ofrecer buscarlo en Amazon
 
 El diagnóstico que se añadió antes dio la respuesta definitiva: la captura del móvil **sí** funciona,
